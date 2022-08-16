@@ -189,7 +189,7 @@
   [center addNotificationRequest:request
            withCompletionHandler:^(NSError *error) {
              if (error == nil) {
-               [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:@{
+               [NotifeeCoreUtil didReceiveNotifeeCoreEvent:@{
                  @"type" : @(NotifeeCoreEventTypeDelivered),
                  @"detail" : @{
                    @"notification" : notificationDetail,
@@ -231,7 +231,7 @@
   [center addNotificationRequest:request
            withCompletionHandler:^(NSError *error) {
              if (error == nil) {
-               [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:@{
+               [NotifeeCoreUtil didReceiveNotifeeCoreEvent:@{
                  @"type" : @(NotifeeCoreEventTypeTriggerNotificationCreated),
                  @"detail" : @{
                    @"notification" : notificationDetail,

@@ -131,7 +131,7 @@ struct {
     NSDictionary *notifeeTrigger = notification.request.content.userInfo[kNotifeeUserInfoTrigger];
     if (notifeeTrigger != nil) {
       // post DELIVERED event
-      [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:@{
+      [NotifeeCoreUtil didReceiveNotifeeCoreEvent:@{
         @"type" : @(NotifeeCoreEventTypeDelivered),
         @"detail" : @{
           @"notification" : notifeeNotification,
@@ -162,7 +162,7 @@ struct {
   if (notifeeNotification != nil) {
     if ([response.actionIdentifier isEqualToString:UNNotificationDismissActionIdentifier]) {
       // post DISMISSED event, only triggers if notification has a categoryId
-      [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:@{
+      [NotifeeCoreUtil didReceiveNotifeeCoreEvent:@{
         @"type" : @(NotifeeCoreEventTypeDismissed),
         @"detail" : @{
           @"notification" : notifeeNotification,
@@ -207,7 +207,7 @@ struct {
     _initialNotification = [eventDetail copy];
 
     // post PRESS/ACTION_PRESS event
-    [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:event];
+    [NotifeeCoreUtil didReceiveNotifeeCoreEvent:event];
 
     // TODO figure out if this is needed or if we can just complete immediately
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(15 * NSEC_PER_SEC)),
