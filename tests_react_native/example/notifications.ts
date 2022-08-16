@@ -5,6 +5,7 @@ import {
   AndroidCategory,
   AndroidImportance,
 } from '@notifee/react-native';
+import { AndroidFlags } from '@notifee/react-native/src';
 
 export const notifications: { key: string; notification: Notification | Notification[] }[] = [
   {
@@ -48,6 +49,39 @@ export const notifications: { key: string; notification: Notification | Notifica
         pressAction: {
           id: 'default',
         },
+      },
+      ios: {},
+    },
+  },
+  {
+    key: 'Loop Sound',
+    notification: {
+      id: 'loopSound',
+      title: 'loop sound',
+      android: {
+        channelId: 'custom_sound',
+        pressAction: {
+          id: 'default',
+        },
+        ongoing: true,
+        loopSound: true,
+      },
+      ios: {},
+    },
+  },
+  {
+    key: 'Android Flags',
+    notification: {
+      id: 'customSound',
+      title: 'custom sound',
+      android: {
+        channelId: 'default',
+        pressAction: {
+          id: 'default',
+        },
+        sound: 'hollow',
+        ongoing: true,
+        flags: [AndroidFlags.FLAG_INSISTENT],
       },
       ios: {},
     },
@@ -109,6 +143,9 @@ export const notifications: { key: string; notification: Notification | Notifica
         categoryId: 'actions',
       },
       android: {
+        pressAction: {
+          id: 'default',
+        },
         autoCancel: true,
         color: '#9c27b0',
         onlyAlertOnce: true,
@@ -118,8 +155,7 @@ export const notifications: { key: string; notification: Notification | Notifica
             title: 'Reply, Open & Cancel',
             icon: 'https://invertase.io/icons/icon-48x48.png',
             pressAction: {
-              id: 'first_action',
-              // reactComponent: 'test_component',
+              id: 'default',
             },
             input: true,
             // input: {
@@ -136,11 +172,6 @@ export const notifications: { key: string; notification: Notification | Notifica
               id: 'second_action',
               mainComponent: 'test_component',
             },
-            // input: {
-            //   choices: ['You'],
-            //   allowFreeFormInput: true,
-            //   placeholder: 'Second Input',
-            // },
           },
           {
             title: 'Nothing',
@@ -150,7 +181,7 @@ export const notifications: { key: string; notification: Notification | Notifica
             },
           },
         ],
-        channelId: 'foo',
+        channelId: 'high',
       },
     },
   },

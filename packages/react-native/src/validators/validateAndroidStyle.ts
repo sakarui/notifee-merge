@@ -1,11 +1,7 @@
 /*
  * Copyright (c) 2016-present Invertase Limited
  */
-
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import resolveAssetSource from 'react-native/Libraries/Image/resolveAssetSource';
-
+import { Image } from 'react-native';
 import {
   AndroidBigPictureStyle,
   AndroidBigTextStyle,
@@ -39,19 +35,24 @@ export function validateAndroidBigPictureStyle(
   };
 
   if (isNumber(style.picture) || isObject(style.picture)) {
-    const image = resolveAssetSource(style.picture);
+    const image = Image.resolveAssetSource(style.picture);
 
     out.picture = image.uri;
   }
 
   if (objectHasProperty(style, 'largeIcon')) {
-    if (!isString(style.largeIcon) && !isNumber(style.largeIcon) && !isObject(style.largeIcon)) {
+    if (
+      style.largeIcon !== null &&
+      !isString(style.largeIcon) &&
+      !isNumber(style.largeIcon) &&
+      !isObject(style.largeIcon)
+    ) {
       throw new Error(
         "'notification.android.style' BigPictureStyle: 'largeIcon' expected a React Native ImageResource value or a valid string URL.",
       );
     }
     if (isNumber(style.largeIcon) || isObject(style.largeIcon)) {
-      const image = resolveAssetSource(style.largeIcon);
+      const image = Image.resolveAssetSource(style.largeIcon);
 
       out.largeIcon = image.uri;
     } else {

@@ -219,7 +219,9 @@
     return block(nil);
   }
 
-  UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:notification[@"id"]
+  NSString *identifier = notification[@"id"];
+
+  UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:identifier
                                                                         content:content
                                                                         trigger:unTrigger];
   UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
@@ -230,7 +232,7 @@
   [center addNotificationRequest:request
            withCompletionHandler:^(NSError *error) {
              if (error == nil) {
-               [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:@{
+               [NotifeeCoreUtil didReceiveNotifeeCoreEvent:@{
                  @"type" : @(NotifeeCoreEventTypeTriggerNotificationCreated),
                  @"detail" : @{
                    @"notification" : notificationDetail,
@@ -267,8 +269,12 @@
     content.body = notification[@"body"];
   }
 
+  NSMutableDictionary *userInfo = [[NSMutableDictionary alloc] init];
+
   // data
-  NSMutableDictionary *userInfo = [notification[@"data"] mutableCopy];
+  if (notification[@"data"] != nil) {
+    userInfo = [notification[@"data"] mutableCopy];
+  }
 
   // attach a copy of the original notification payload into the data object,
   // for internal use
@@ -283,17 +289,17 @@
   content.badge = iosDict[@"badgeCount"];
 
   // categoryId
-  if (iosDict[@"categoryId"] != nil) {
+  if (iosDict[@"categoryId"] != nil && iosDict[@"categoryId"] != [NSNull null]) {
     content.categoryIdentifier = iosDict[@"categoryId"];
   }
 
   // launchImageName
-  if (iosDict[@"launchImageName"] != nil) {
+  if (iosDict[@"launchImageName"] != nil && iosDict[@"launchImageName"] != [NSNull null]) {
     content.launchImageName = iosDict[@"launchImageName"];
   }
 
   // critical, criticalVolume, sound
-  if (iosDict[@"critical"] != nil) {
+  if (iosDict[@"critical"] != nil && iosDict[@"critical"] != [NSNull null]) {
     UNNotificationSound *notificationSound;
     BOOL criticalSound = [iosDict[@"critical"] boolValue];
     NSNumber *criticalSoundVolume = iosDict[@"criticalVolume"];
@@ -584,20 +590,21 @@
   [center
       getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *_Nonnull settings) {
         NSMutableDictionary *settingsDictionary = [NSMutableDictionary dictionary];
+        NSMutableDictionary *iosDictionary = [NSMutableDictionary dictionary];
 
-        // authorizedStatus
-        NSNumber *authorizedStatus = @-1;
+        // authorizationStatus
+        NSNumber *authorizationStatus = @-1;
         if (settings.authorizationStatus == UNAuthorizationStatusNotDetermined) {
-          authorizedStatus = @-1;
+          authorizationStatus = @-1;
         } else if (settings.authorizationStatus == UNAuthorizationStatusDenied) {
-          authorizedStatus = @0;
+          authorizationStatus = @0;
         } else if (settings.authorizationStatus == UNAuthorizationStatusAuthorized) {
-          authorizedStatus = @1;
+          authorizationStatus = @1;
         }
 
         if (@available(iOS 12.0, *)) {
           if (settings.authorizationStatus == UNAuthorizationStatusProvisional) {
-            authorizedStatus = @2;
+            authorizationStatus = @2;
           }
         }
 
@@ -613,40 +620,44 @@
         }
 
         if (@available(iOS 13.0, *)) {
-          settingsDictionary[@"announcement"] =
+          iosDictionary[@"announcement"] =
               [NotifeeCoreUtil numberForUNNotificationSetting:settings.announcementSetting];
         } else {
-          settingsDictionary[@"announcement"] = @-1;
+          iosDictionary[@"announcement"] = @-1;
         }
 
         if (@available(iOS 12.0, *)) {
-          settingsDictionary[@"criticalAlert"] =
+          iosDictionary[@"criticalAlert"] =
               [NotifeeCoreUtil numberForUNNotificationSetting:settings.criticalAlertSetting];
         } else {
-          settingsDictionary[@"criticalAlert"] = @-1;
+          iosDictionary[@"criticalAlert"] = @-1;
         }
 
         if (@available(iOS 12.0, *)) {
-          settingsDictionary[@"inAppNotificationSettings"] =
+          iosDictionary[@"inAppNotificationSettings"] =
               settings.providesAppNotificationSettings ? @1 : @0;
         } else {
-          settingsDictionary[@"inAppNotificationSettings"] = @-1;
+          iosDictionary[@"inAppNotificationSettings"] = @-1;
         }
 
-        settingsDictionary[@"showPreviews"] = showPreviews;
-        settingsDictionary[@"authorizationStatus"] = authorizedStatus;
-        settingsDictionary[@"alert"] =
+        iosDictionary[@"showPreviews"] = showPreviews;
+        iosDictionary[@"authorizationStatus"] = authorizationStatus;
+        iosDictionary[@"alert"] =
             [NotifeeCoreUtil numberForUNNotificationSetting:settings.alertSetting];
-        settingsDictionary[@"badge"] =
+        iosDictionary[@"badge"] =
             [NotifeeCoreUtil numberForUNNotificationSetting:settings.badgeSetting];
-        settingsDictionary[@"sound"] =
+        iosDictionary[@"sound"] =
             [NotifeeCoreUtil numberForUNNotificationSetting:settings.soundSetting];
-        settingsDictionary[@"carPlay"] =
+        iosDictionary[@"carPlay"] =
             [NotifeeCoreUtil numberForUNNotificationSetting:settings.carPlaySetting];
-        settingsDictionary[@"lockScreen"] =
+        iosDictionary[@"lockScreen"] =
             [NotifeeCoreUtil numberForUNNotificationSetting:settings.lockScreenSetting];
-        settingsDictionary[@"notificationCenter"] =
+        iosDictionary[@"notificationCenter"] =
             [NotifeeCoreUtil numberForUNNotificationSetting:settings.notificationCenterSetting];
+
+        settingsDictionary[@"authorizationStatus"] = authorizationStatus;
+        settingsDictionary[@"ios"] = iosDictionary;
+
         block(nil, settingsDictionary);
       }];
 }

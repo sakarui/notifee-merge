@@ -19,6 +19,7 @@ package app.notifee.core.model;
 
 import android.os.Bundle;
 import androidx.annotation.NonNull;
+import app.notifee.core.utility.ObjectUtils;
 import java.util.concurrent.TimeUnit;
 
 public class TimestampTriggerModel {
@@ -28,6 +29,7 @@ public class TimestampTriggerModel {
   private Boolean mWithAlarmManager = false;
   private Boolean mAllowWhileIdle = false;
   private String mRepeatFrequency = null;
+  private Long mTimestamp = null;
 
   public static final String HOURLY = "HOURLY";
   public static final String DAILY = "DAILY";
@@ -45,8 +47,8 @@ public class TimestampTriggerModel {
     // set initial values
     TimeUnit timeUnit = null;
     if (mTimeTriggerBundle.containsKey("repeatFrequency")) {
-      Double d = mTimeTriggerBundle.getDouble("repeatFrequency");
-      int repeatFrequency = d.intValue();
+      int repeatFrequency = ObjectUtils.getInt(mTimeTriggerBundle.get("repeatFrequency"));
+      mTimestamp = ObjectUtils.getLong(mTimeTriggerBundle.get("timestamp"));
 
       switch (repeatFrequency) {
         case -1:
@@ -79,6 +81,9 @@ public class TimestampTriggerModel {
       if (alarmManagerBundle.containsKey("allowWhileIdle")) {
         mAllowWhileIdle = alarmManagerBundle.getBoolean("allowWhileIdle");
       }
+    } else if (mTimeTriggerBundle.containsKey("allowWhileIdle")) {
+      mWithAlarmManager = true;
+      mAllowWhileIdle = mTimeTriggerBundle.getBoolean("allowWhileIdle");
     }
   }
 
@@ -87,14 +92,14 @@ public class TimestampTriggerModel {
   }
 
   public long getTimestamp() {
-    return (long) mTimeTriggerBundle.getDouble("timestamp");
+    return mTimestamp;
   }
 
   public long getDelay() {
     long delay = 0;
 
     if (mTimeTriggerBundle.containsKey("timestamp")) {
-      long timestamp = (long) mTimeTriggerBundle.getDouble("timestamp");
+      long timestamp = ObjectUtils.getLong(mTimeTriggerBundle.get("timestamp"));
       if (timestamp > 0) {
         delay = Math.round((timestamp - System.currentTimeMillis()) / 1000);
       }
@@ -103,21 +108,33 @@ public class TimestampTriggerModel {
     return delay;
   }
 
-  public long getNextTimestamp() {
+  public void setNextTimestamp() {
+    // Skip for non-repeating triggers
+    if (mRepeatFrequency == null) {
+      return;
+    }
+
     long timestamp = getTimestamp();
+    long interval = 0;
+
     switch (mRepeatFrequency) {
       case TimestampTriggerModel.WEEKLY:
-        timestamp = timestamp + 7 * DAY_IN_MS;
+        interval = 7 * DAY_IN_MS;
         break;
       case TimestampTriggerModel.DAILY:
-        timestamp = timestamp + DAY_IN_MS;
+        interval = DAY_IN_MS;
         break;
       case TimestampTriggerModel.HOURLY:
-        timestamp = timestamp + HOUR_IN_MS;
+        interval = HOUR_IN_MS;
         break;
     }
 
-    return timestamp;
+    // prevent alarm manager notification firing straight away
+    while (timestamp < System.currentTimeMillis()) {
+      timestamp += interval;
+    }
+
+    this.mTimestamp = timestamp;
   }
 
   public int getInterval() {

@@ -20,6 +20,7 @@
 #import <Intents/INIntentIdentifiers.h>
 #import <UIKit/UIKit.h>
 #import "NotifeeCore+NSURLSession.h"
+#import "NotifeeCoreDelegateHolder.h"
 
 @implementation NotifeeCoreUtil
 
@@ -515,7 +516,7 @@
       // IOSIntentIdentifier.PAUSE_WORKOUT
       [intentIdentifiers addObject:INPauseWorkoutIntentIdentifier];
     } else if ([identifier isEqualToNumber:@11]) {
-      // IOSIntentIdentifier.END_WORKOUT
+      // IntentIdentifier.END_WORKOUT
       [intentIdentifiers addObject:INEndWorkoutIntentIdentifier];
     } else if ([identifier isEqualToNumber:@12]) {
       // IOSIntentIdentifier.CANCEL_WORKOUT
@@ -712,6 +713,21 @@
  */
 + (NSString *)generateCachedFileName:(int)length {
   return [[NSUUID UUID] UUIDString];
+}
+
+/**
+ * Util to send an event with the foreground status of the application
+ */
++ (void)didReceiveNotifeeCoreEvent:(NSDictionary *)event {
+  [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:event
+                                                        foreground:[self isInForeground]];
+}
+
+/**
+ * Determines if application is in the foreground or not
+ */
++ (BOOL)isInForeground {
+  return [UIApplication sharedApplication].applicationState == UIApplicationStateActive;
 }
 
 /**

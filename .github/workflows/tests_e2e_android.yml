@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
   pull_request:
     paths-ignore:
-      - 'docs/**'
+      - 'docs-react-native/**'
       - '**/*.md'
   push:
     branches:
       - main
     paths-ignore:
-      - 'docs/**'
+      - 'docs-react-native/**'
       - '**/*.md'
 
 jobs:
@@ -78,7 +78,7 @@ jobs:
       - name: Yarn Install
         uses: nick-invision/retry@v2
         with:
-          timeout_minutes: 10
+          timeout_minutes: 15
           retry_wait_seconds: 60
           max_attempts: 4
           command: yarn --no-audit --prefer-offline && npm i -g cavy-cli
@@ -134,10 +134,10 @@ jobs:
           timeout_minutes: 10
           retry_wait_seconds: 60
           max_attempts: 3
-          command: echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "system-images;android-30;google_apis;x86_64"
+          command: echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "system-images;android-31;google_apis;x86_64"
 
       - name: Create Emulator
-        run: echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd --force --name TestingAVD --device "Nexus 5X" -k 'system-images;android-30;google_apis;x86_64' -g google_apis
+        run: echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd --force --name TestingAVD --device "Nexus 5X" -k 'system-images;android-31;google_apis;x86_64' -g google_apis
 
       # These Emulator start steps are the current best practice to do retries on multi-line commands with persistent (nohup) processes
       - name: Start Android Emulator

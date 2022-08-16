@@ -19,6 +19,8 @@ package app.notifee.core;
 
 import static app.notifee.core.ContextHolder.getApplicationContext;
 import static app.notifee.core.ReceiverService.ACTION_PRESS_INTENT;
+import static app.notifee.core.event.NotificationEvent.TYPE_ACTION_PRESS;
+import static app.notifee.core.event.NotificationEvent.TYPE_PRESS;
 import static java.lang.Integer.parseInt;
 
 import android.app.Notification;
@@ -57,6 +59,7 @@ import app.notifee.core.model.NotificationModel;
 import app.notifee.core.model.TimestampTriggerModel;
 import app.notifee.core.utility.IntentUtils;
 import app.notifee.core.utility.ObjectUtils;
+import app.notifee.core.utility.PowerManagerUtils;
 import app.notifee.core.utility.ResourceUtils;
 import app.notifee.core.utility.TextUtils;
 import com.google.android.gms.tasks.Continuation;
@@ -101,13 +104,26 @@ class NotificationManager {
                   ReceiverService.DELETE_INTENT,
                   new String[] {"notification"},
                   notificationModel.toBundle()));
-
-          builder.setContentIntent(
-              ReceiverService.createIntent(
-                  ReceiverService.PRESS_INTENT,
-                  new String[] {"notification", "pressAction"},
-                  notificationModel.toBundle(),
-                  androidModel.getPressAction()));
+          int targetSdkVersion =
+              ContextHolder.getApplicationContext().getApplicationInfo().targetSdkVersion;
+          if (targetSdkVersion >= Build.VERSION_CODES.S
+              && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setContentIntent(
+                NotificationPendingIntent.createIntent(
+                    notificationModel.getHashCode(),
+                    androidModel.getPressAction(),
+                    TYPE_PRESS,
+                    new String[] {"notification", "pressAction"},
+                    notificationModel.toBundle(),
+                    androidModel.getPressAction()));
+          } else {
+            builder.setContentIntent(
+                ReceiverService.createIntent(
+                    ReceiverService.PRESS_INTENT,
+                    new String[] {"notification", "pressAction"},
+                    notificationModel.toBundle(),
+                    androidModel.getPressAction()));
+          }
 
           if (notificationModel.getTitle() != null) {
             builder.setContentTitle(TextUtils.fromHtml(notificationModel.getTitle()));
@@ -305,7 +321,7 @@ class NotificationManager {
                         getApplicationContext(),
                         notificationModel.getHashCode(),
                         launchIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT);
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
                 builder.setFullScreenIntent(fullScreenPendingIntent, true);
               }
 
@@ -326,12 +342,27 @@ class NotificationManager {
           }
 
           for (NotificationAndroidActionModel actionBundle : actionBundles) {
-            PendingIntent pendingIntent =
-                ReceiverService.createIntent(
-                    ACTION_PRESS_INTENT,
-                    new String[] {"notification", "pressAction"},
-                    notificationModel.toBundle(),
-                    actionBundle.getPressAction().toBundle());
+            PendingIntent pendingIntent = null;
+            int targetSdkVersion =
+                ContextHolder.getApplicationContext().getApplicationInfo().targetSdkVersion;
+            if (targetSdkVersion >= Build.VERSION_CODES.S
+                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+              pendingIntent =
+                  NotificationPendingIntent.createIntent(
+                      notificationModel.getHashCode(),
+                      actionBundle.getPressAction().toBundle(),
+                      TYPE_ACTION_PRESS,
+                      new String[] {"notification", "pressAction"},
+                      notificationModel.toBundle(),
+                      actionBundle.getPressAction().toBundle());
+            } else {
+              pendingIntent =
+                  ReceiverService.createIntent(
+                      ACTION_PRESS_INTENT,
+                      new String[] {"notification", "pressAction"},
+                      notificationModel.toBundle(),
+                      actionBundle.getPressAction().toBundle());
+            }
 
             String icon = actionBundle.getIcon();
             Bitmap iconBitmap = null;
@@ -437,9 +468,16 @@ class NotificationManager {
             task -> {
               if (notificationType == NOTIFICATION_TYPE_TRIGGER
                   || notificationType == NOTIFICATION_TYPE_ALL) {
-                NotifeeAlarmManager.cancelAllNotifications();
-                // delete all from database
-                WorkDataRepository.getInstance(getApplicationContext()).deleteAll();
+                task.continueWith(NotifeeAlarmManager.cancelAllNotifications())
+                    .addOnSuccessListener(
+                        t -> {
+                          t.continueWith(
+                              a -> {
+                                // delete all from database after canceling the alarms
+                                WorkDataRepository.getInstance(getApplicationContext()).deleteAll();
+                                return null;
+                              });
+                        });
               }
               return null;
             });
@@ -526,6 +564,20 @@ class NotificationManager {
               int hashCode = notificationModel.getHashCode();
 
               NotificationAndroidModel androidBundle = notificationModel.getAndroid();
+              if (androidBundle.getLoopSound()) {
+                notification.flags |= Notification.FLAG_INSISTENT;
+              }
+
+              if (androidBundle.getFlags() != null && androidBundle.getFlags().length > 0) {
+                for (int flag : androidBundle.getFlags()) {
+                  notification.flags |= flag;
+                }
+              }
+
+              if (androidBundle.getLightUpScreen()) {
+                PowerManagerUtils.lightUpScreenIfNeeded(ContextHolder.getApplicationContext());
+              }
+
               if (androidBundle.getAsForegroundService()) {
                 ForegroundService.start(hashCode, notification, notificationModel.toBundle());
               } else {
@@ -545,7 +597,7 @@ class NotificationManager {
     return Tasks.call(
         CACHED_THREAD_POOL,
         () -> {
-          int triggerType = (int) triggerBundle.getDouble("type");
+          int triggerType = ObjectUtils.getInt(triggerBundle.get("type"));
           switch (triggerType) {
             case 0:
               createTimestampTriggerNotification(notificationModel, triggerBundle);
@@ -613,7 +665,7 @@ class NotificationManager {
 
     // Schedule notification with alarm manager
     if (withAlarmManager) {
-      NotifeeAlarmManager.scheduleTimestampTriggerNotification(notificationModel, trigger, true);
+      NotifeeAlarmManager.scheduleTimestampTriggerNotification(notificationModel, trigger);
       return;
     }
 

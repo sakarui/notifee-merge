@@ -40,6 +40,13 @@ export interface NotificationAndroid {
   asForegroundService?: boolean;
 
   /**
+   * When set to `true` the screen will light up when the notification is displayed.
+   *
+   * Defaults to `false`.
+   */
+  lightUpScreen?: boolean;
+
+  /**
    * Setting this flag will make it so the notification is automatically canceled when the user
    * presses it in the panel.
    *
@@ -233,6 +240,18 @@ export interface NotificationAndroid {
   ongoing?: boolean;
 
   /**
+   * Set whether the sound should loop, by default, the sound will only play once.
+   *
+   * This property is useful if you have an ongoing notification.
+   */
+  loopSound?: boolean;
+
+  /**
+   * Set any additional flags
+   */
+  flags?: AndroidFlags[];
+
+  /**
    * Notifications with the same `id` will only show a single instance at any one time on your device,
    * however will still alert the user (for example, by making a sound).
    *
@@ -417,6 +436,46 @@ export interface NotificationAndroid {
 }
 
 /**
+ * An interface representing the current android only notification-related settings for your app.
+ *
+ * This interface is returned from [`requestPermission`](/react-native/reference/requestpermission)
+ * and [`getNotificationSettings`](/react-native/reference/getnotificationsettings).
+ *
+ * View the [Permissions](/react-native/docs/android/permissions) documentation to learn more.
+ *
+ * @platform android
+ */
+
+export enum AndroidNotificationSetting {
+  /**
+   * This setting is not supported on this device. Usually this means that the Android version required
+   * for this setting has not been met.
+   */
+  NOT_SUPPORTED = -1,
+
+  /**
+   * This setting is currently disabled by the user.
+   */
+  DISABLED = 0,
+
+  /**
+   * This setting is currently enabled.
+   */
+  ENABLED = 1,
+}
+
+export interface AndroidNotificationSettings {
+  /**
+   * Enum describing if you can create triggers
+   *
+   * For Android < 12 / API < 31, this will default to true
+   *
+   * View the [Trigger](/react-native/docs/android/triggers#android-12-limitations) documentation for more information.
+   */
+  alarm: AndroidNotificationSetting;
+}
+
+/**
  * The interface used to describe a notification quick action for Android.
  *
  * Notification actions allow users to interact with notifications, allowing you to handle events
@@ -546,9 +605,11 @@ export interface AndroidBigPictureStyle {
    * A local file path using the 'require()' method or a HTTP or file URL to the picture to display.
    *
    * If set, overrides the main notification `largeIcon` when the notification is expanded.
+   *
+   * To hide the `largeIcon` when the notification is expanded, set to null. Similar to `thumbnailHidden` for attachments on iOS.
    */
   /* eslint-disable-next-line @typescript-eslint/ban-types */
-  largeIcon?: string | number | object;
+  largeIcon?: string | number | object | null;
 
   /**
    * If set, overrides the main notification `summary` when the notification is expanded.
@@ -1120,6 +1181,18 @@ export enum AndroidDefaults {
    * The notification will vibrate to alert the user.
    */
   VIBRATE = 2,
+}
+
+/**
+ * Enum used to set any additional flags supported on Android.
+ * See Android's [setFlag()](https://developer.android.com/reference/android/app/Notification.Builder#setFlag(int,%20boolean)) documentation.
+ */
+export enum AndroidFlags {
+  /**
+   * The audio will be repeated until the notification is cancelled or the notification window is opened.
+   * This will be set for you by setting `loopSound`.
+   */
+  FLAG_INSISTENT = 4,
 }
 
 /**

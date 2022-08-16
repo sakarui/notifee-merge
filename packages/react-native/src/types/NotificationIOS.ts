@@ -2,6 +2,7 @@
  * Copyright (c) 2016-present Invertase Limited.
  */
 
+import { AuthorizationStatus } from './Notification';
 /**
  * The interface for iOS specific options which are applied to a notification.
  *
@@ -124,21 +125,42 @@ export interface IOSForegroundPresentationOptions {
   /**
    * App in foreground dialog box which indicates when a decision has to be made
    *
-   * Defaults to false
+   * Defaults to true
+   * @deprecated Use `banner` and `list` instead
    */
   alert?: boolean;
+
   /**
    * App in foreground notification sound
    *
-   * Defaults to false
+   * Defaults to true
    */
   sound?: boolean;
+
   /**
    * App in foreground badge update
    *
    * Defaults to true
    */
   badge?: boolean;
+
+  /**
+   * Present the notification as a banner
+   *
+   * For iOS 13 and lower, will be equivalent to setting `alert` to true
+   *
+   * Defaults to true
+   */
+  banner?: boolean;
+
+  /**
+   * Show the notification in Notification Center
+   *
+   * For iOS 13 and lower, will be equivalent to setting `alert` to true
+   *
+   * Defaults to true
+   */
+  list?: boolean;
 }
 
 /**
@@ -222,38 +244,6 @@ export interface IOSNotificationPermissions {
 }
 
 /**
- * An enum representing the notification authorization status for this app on the device.
- *
- * Value is greater than 0 if authorized, compare against an exact status (e.g. PROVISIONAL) for a more
- * granular status.
- *
- * @platform ios
- */
-export enum IOSAuthorizationStatus {
-  /**
-   * The app user has not yet chosen whether to allow the application to create notifications. Usually
-   * this status is returned prior to the first call of `requestPermission`.
-   */
-  NOT_DETERMINED = -1,
-
-  /**
-   * The app is not authorized to create notifications.
-   */
-  DENIED = 0,
-
-  /**
-   * The app is authorized to create notifications.
-   */
-  AUTHORIZED = 1,
-
-  /**
-   * The app is currently authorized to post non-interrupting user notifications
-   * @platform ios iOS >= 12
-   */
-  PROVISIONAL = 2,
-}
-
-/**
  * An enum representing the show previews notification setting for this app on the device.
  *
  * Value is greater than 0 if previews are to be shown, compare against an exact value
@@ -314,7 +304,7 @@ export enum IOSNotificationSetting {
  * An interface representing the current authorization status and notification-related settings for your app.
  *
  * This interface is returned from [`requestPermission`](/react-native/reference/requestpermission)
- * and [`getNotificationSettings`](/reference/getnotificationsettings).
+ * and [`getNotificationSettings`](/react-native/reference/getnotificationsettings).
  *
  * View the [Observing Settings](/react-native/docs/ios/permissions#observing-settings) documentation to learn more.
  *
@@ -375,7 +365,7 @@ export interface IOSNotificationSettings {
   /**
    * Overall notification authorization status for the application.
    */
-  authorizationStatus: IOSAuthorizationStatus;
+  authorizationStatus: AuthorizationStatus;
 }
 
 /**

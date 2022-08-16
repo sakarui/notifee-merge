@@ -65,6 +65,10 @@ typedef NS_ENUM(NSInteger, NotifeeCoreRepeatFrequency) {
 
 + (UNNotificationTrigger *)triggerFromDictionary:(NSDictionary *)triggerDict;
 
++ (void)didReceiveNotifeeCoreEvent:(NSDictionary *)event;
+
++ (BOOL)isInForeground;
+
 + (NSNumber *)convertToTimestamp:(NSDate *)date;
 
 + (NSDictionary *)parseUNNotificationRequest:(UNNotificationRequest *)request;

@@ -2,8 +2,7 @@
 /*
  * Copyright (c) 2016-present Invertase Limited
  */
-// @ts-ignore
-import resolveAssetSource from 'react-native/Libraries/Image/resolveAssetSource';
+import { Image } from 'react-native';
 
 import {
   objectHasProperty,
@@ -22,6 +21,7 @@ import {
   AndroidBadgeIconType,
   AndroidCategory,
   AndroidDefaults,
+  AndroidFlags,
   AndroidGroupAlertBehavior,
   AndroidProgress,
   AndroidStyle,
@@ -53,6 +53,7 @@ export default function validateAndroidNotification(
   const out: NotificationAndroid = {
     autoCancel: true,
     asForegroundService: false,
+    lightUpScreen: false,
     badgeIconType: AndroidBadgeIconType.LARGE,
     colorized: false,
     chronometerDirection: 'up',
@@ -61,6 +62,7 @@ export default function validateAndroidNotification(
     groupSummary: false,
     localOnly: false,
     ongoing: false,
+    loopSound: false,
     onlyAlertOnce: false,
     importance: AndroidImportance.DEFAULT,
     showTimestamp: false,
@@ -112,6 +114,17 @@ export default function validateAndroidNotification(
     }
 
     out.asForegroundService = android.asForegroundService;
+  }
+
+  /**
+   * lightUpScreen
+   */
+  if (objectHasProperty(android, 'lightUpScreen')) {
+    if (!isBoolean(android.lightUpScreen)) {
+      throw new Error("'notification.android.lightUpScreen' expected a boolean value.");
+    }
+
+    out.lightUpScreen = android.lightUpScreen;
   }
 
   /**
@@ -301,7 +314,7 @@ export default function validateAndroidNotification(
     }
 
     if (isNumber(android.largeIcon) || isObject(android.largeIcon)) {
-      const image = resolveAssetSource(android.largeIcon);
+      const image = Image.resolveAssetSource(android.largeIcon);
       out.largeIcon = image.uri;
     } else {
       out.largeIcon = android.largeIcon;
@@ -364,6 +377,42 @@ export default function validateAndroidNotification(
     }
 
     out.ongoing = android.ongoing;
+  }
+
+  /**
+   * loopSound
+   */
+  if (objectHasProperty(android, 'loopSound')) {
+    if (!isBoolean(android.loopSound)) {
+      throw new Error("'notification.android.loopSound' expected a boolean value.");
+    }
+
+    out.loopSound = android.loopSound;
+  }
+
+  /**
+   * flags
+   */
+  if (objectHasProperty(android, 'flags') && !isUndefined(android.flags)) {
+    if (!isArray(android.flags)) {
+      throw new Error("'notification.android.flags' expected an array.");
+    }
+
+    if (android.flags.length === 0) {
+      throw new Error("'notification.android.flags' expected an array containing AndroidDefaults.");
+    }
+
+    const defaults = Object.values(AndroidFlags);
+
+    for (let i = 0; i < android.flags.length; i++) {
+      if (!defaults.includes(android.flags[i])) {
+        throw new Error(
+          "'notification.android.flags' invalid array value, expected an AndroidFlags value.",
+        );
+      }
+    }
+
+    out.flags = android.flags;
   }
 
   /**
