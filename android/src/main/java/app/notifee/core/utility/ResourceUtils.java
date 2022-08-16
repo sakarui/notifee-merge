@@ -1,5 +1,22 @@
 package app.notifee.core.utility;
 
+/*
+ * Copyright (c) 2016-present Invertase Limited & Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this library except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -235,16 +252,30 @@ public class ResourceUtils {
   public static @Nullable String getSoundName(Uri sound) {
     if (sound == null) return null;
     if (sound.toString().contains("android.resource")) {
-      int resourceId = Integer.valueOf(sound.getLastPathSegment());
-      if (resourceId != 0) {
-        TypedValue value = new TypedValue();
-        Context context = ContextHolder.getApplicationContext();
-        context.getResources().getValue(resourceId, value, true);
+      String soundFile = sound.getLastPathSegment();
+      try {
+        int resourceId = Integer.valueOf(soundFile);
+        Logger.e(
+            TAG,
+            "Loaded sound by resource id. New app builds will fail to play sound. Create a new"
+                + " channel to resolve. Issue #341");
+        if (resourceId != 0) {
+          TypedValue value = new TypedValue();
+          Context context = ContextHolder.getApplicationContext();
+          context.getResources().getValue(resourceId, value, true);
 
-        CharSequence soundString = value.string;
-        if (soundString != null || soundString.length() > 0) {
-          return soundString.toString().replace("res/raw/", "");
+          CharSequence soundString = value.string;
+          if (soundString != null || soundString.length() > 0) {
+            return soundString.toString().replace("res/raw/", "");
+          }
         }
+      } catch (NumberFormatException nfe) {
+        // This implies the sound URI last path segment was by file name, not resourceId
+        // They were by resourceId prior to issue #341 where we learned that leads to unstable URIs
+        // Now we verify the file exists but use the file name from the raw directory
+        // We still attempt to resolve by resourceId above to gracefully handle URIs created via our
+        // previous behavior
+        return soundFile;
       }
     }
 
@@ -261,6 +292,7 @@ public class ResourceUtils {
     } else if (sound.equalsIgnoreCase("default")) {
       return RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
     } else {
+      // The API user is attempting to set a sound by file name, verify it exists
       int soundResourceId = getResourceIdByName(sound, "raw");
       if (soundResourceId == 0 && sound.contains(".")) {
         soundResourceId = getResourceIdByName(sound.substring(0, sound.lastIndexOf('.')), "raw");
@@ -270,7 +302,8 @@ public class ResourceUtils {
         return null;
       }
 
-      return Uri.parse("android.resource://" + context.getPackageName() + "/" + soundResourceId);
+      // Use the actual sound name vs the resource ID, to obtain a stable URI, Issue #341
+      return Uri.parse("android.resource://" + context.getPackageName() + "/raw/" + sound);
     }
   }
 }

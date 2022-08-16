@@ -6,7 +6,7 @@ buildscript {
     mavenCentral()
   }
   dependencies {
-    classpath 'com.android.tools.build:gradle:4.1.3'
+    classpath 'com.android.tools.build:gradle:7.0.3'
   }
 }
 
@@ -20,7 +20,7 @@ ext {
     println "\n\n\n"
     println "**************************************************************************************************************"
     println "\n\n\n"
-    println "ERROR: Notifee builds with JVM LTS and current releases (currently major version 8, 11, or 14)."
+    println "ERROR: Notifee builds with JVM LTS and current releases (currently major version 11, or 14)."
     println "  Incompatible major version detected: '" + jvmVersion + "'"
     println "\n\n\n"
     println "**************************************************************************************************************"
@@ -38,12 +38,12 @@ ext {
 }
 
 android {
-  compileSdkVersion 30
+  compileSdkVersion 31
   testOptions {
     unitTests.returnDefaultValues = true
   }
   defaultConfig {
-    minSdkVersion 16
+    minSdkVersion 20
     targetSdkVersion 30
     versionCode 1
     versionName "1.0"
@@ -96,44 +96,21 @@ android {
   }
 }
 
-android.libraryVariants.all { variant ->
-  def variantName = variant.name.capitalize()
-  def assembleTaskName = "assemble${variantName}"
-  def copyTaskName = "copy${variantName}Artifacts"
-
-  task(copyTaskName, type: Copy, dependsOn: assembleTaskName, group: "build") {
-    variant.outputs.each { output ->
-      def newOutputName = "notifee_core_" + output.name + ".aar"
-      from(output.outputFile.parent) {
-        include output.outputFile.name
-        rename output.outputFile.name, newOutputName
-      }
-    }
-    into new File("$project.rootDir/../packages/react-native/android/libs")
-  }
-
-  project.tasks.getByName(assembleTaskName).finalizedBy(copyTaskName)
-}
-
 repositories {
   google()
   mavenCentral()
-  jcenter()
 }
 
 dependencies {
 
-  api 'androidx.annotation:annotation:1.2.0' // https://developer.android.com/jetpack/androidx/releases/annotation
+  api 'androidx.annotation:annotation:1.3.0' // https://developer.android.com/jetpack/androidx/releases/annotation
   api "com.squareup.okhttp3:okhttp:3.12.12" // okhttp must stay on 3.12.x to support minSdkVersion < 21
   api 'androidx.concurrent:concurrent-futures:1.1.0' // https://developer.android.com/jetpack/androidx/releases/concurrent
-  api 'com.google.android.gms:play-services-tasks:17.2.1' // https://developers.google.com/android/guides/releases
-  api 'androidx.work:work-runtime:2.5.0' // https://developer.android.com/jetpack/androidx/releases/work
-  // Fresco 2.3.0+ may not be react-native compatible until 0.65.x with this: https://github.com/facebook/react-native/pull/30061
-  // But! Fresco 2.2.0 is on JCenter and 2.3.0 is on mavenCentral - use 2.3.0 if you have to? https://github.com/facebook/fresco/issues/2585#issuecomment-822785614
-  api 'com.facebook.fresco:fresco:2.2.0' // https://github.com/facebook/fresco/releases
-  api 'io.jsonwebtoken:jjwt-api:0.11.2' // https://github.com/jwtk/jjwt/releases
+  api 'com.google.android.gms:play-services-tasks:18.0.1' // https://developers.google.com/android/guides/releases
+  api 'androidx.work:work-runtime:2.7.1' // https://developer.android.com/jetpack/androidx/releases/work
+  api 'com.facebook.fresco:fresco:2.6.0' // https://github.com/facebook/fresco/releases
 
-  def room_version = '2.2.6' // https://developer.android.com/jetpack/androidx/releases/room
+  def room_version = '2.3.0' // https://developer.android.com/jetpack/androidx/releases/room
   implementation "androidx.room:room-runtime:$room_version"
   annotationProcessor "androidx.room:room-compiler:$room_version"
 
@@ -142,8 +119,30 @@ dependencies {
   annotationProcessor "org.greenrobot:eventbus-annotation-processor:$eventbus_version"
 
   testImplementation 'junit:junit:4.13.2' // https://github.com/junit-team/junit4/releases
-  androidTestImplementation 'androidx.test.ext:junit:1.1.2' // https://developer.android.com/jetpack/androidx/releases/test
-  androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0' // see above
+  androidTestImplementation 'androidx.test.ext:junit:1.1.3' // https://developer.android.com/jetpack/androidx/releases/test
+  androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0' // see above
   androidTestImplementation "androidx.room:room-testing:$room_version"
-  androidTestImplementation "androidx.test:monitor:1.2.0"
+  androidTestImplementation "androidx.test:monitor:1.4.0"
+}
+
+apply plugin: 'maven-publish'
+
+publishing {
+    publications {
+        aar(MavenPublication) {
+            project.tasks.publishAarPublicationToMavenLocal.dependsOn("assembleRelease")
+            groupId 'app.notifee'
+            artifactId 'core'
+            version '202108261754'
+            artifact("$buildDir/outputs/aar/${project.getName()}-release.aar")
+        }
+    }
+
+    repositories {
+        maven {
+            url = "$rootDir/../packages/react-native/android/libs/"
+        }
+        project.tasks.publishAarPublicationToMavenRepository.dependsOn("assembleRelease")
+
+    }
 }

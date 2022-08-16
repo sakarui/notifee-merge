@@ -1,6 +1,22 @@
 package app.notifee.core;
 
-import static app.notifee.core.LicenseManager.logLicenseWarningForEvent;
+/*
+ * Copyright (c) 2016-present Invertase Limited & Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this library except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
 import static app.notifee.core.event.NotificationEvent.TYPE_ACTION_PRESS;
 import static app.notifee.core.event.NotificationEvent.TYPE_DISMISSED;
 import static app.notifee.core.event.NotificationEvent.TYPE_PRESS;
@@ -9,21 +25,27 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import androidx.annotation.Nullable;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.app.RemoteInput;
 import app.notifee.core.event.InitialNotificationEvent;
 import app.notifee.core.event.MainComponentEvent;
 import app.notifee.core.event.NotificationEvent;
+import app.notifee.core.model.NotificationAndroidModel;
 import app.notifee.core.model.NotificationAndroidPressActionModel;
 import app.notifee.core.model.NotificationModel;
 import app.notifee.core.utility.IntentUtils;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ReceiverService extends Service {
   private static final String TAG = "ReceiverService";
   public static final String REMOTE_INPUT_RECEIVER_KEY =
       "app.notifee.core.ReceiverService.REMOTE_INPUT_RECEIVER_KEY";
+
+  private static final AtomicInteger uniqueIds = new AtomicInteger(0);
 
   static final String DELETE_INTENT = "app.notifee.core.ReceiverService.DELETE_INTENT";
   static final String PRESS_INTENT = "app.notifee.core.ReceiverService.PRESS_INTENT";
@@ -53,8 +75,9 @@ public class ReceiverService extends Service {
       }
     }
 
-    int uniqueInt = (int) (System.currentTimeMillis() & 0xfffffff);
-    return PendingIntent.getService(context, uniqueInt, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+    int uniqueInt = uniqueIds.getAndIncrement();
+    return PendingIntent.getService(
+        context, uniqueInt, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
   }
 
   @Nullable
@@ -94,11 +117,6 @@ public class ReceiverService extends Service {
       return;
     }
 
-    if (LicenseManager.isLicenseInvalid()) {
-      logLicenseWarningForEvent("notification dismissed");
-      return;
-    }
-
     NotificationModel notificationModel = NotificationModel.fromBundle(notification);
     EventBus.post(new NotificationEvent(TYPE_DISMISSED, notificationModel));
   }
@@ -108,11 +126,6 @@ public class ReceiverService extends Service {
     Bundle notification = intent.getBundleExtra("notification");
 
     if (notification == null) {
-      return;
-    }
-
-    if (LicenseManager.isLicenseInvalid()) {
-      logLicenseWarningForEvent("notification press");
       return;
     }
 
@@ -157,12 +170,8 @@ public class ReceiverService extends Service {
       return;
     }
 
-    if (LicenseManager.isLicenseInvalid()) {
-      logLicenseWarningForEvent("notification press action");
-      return;
-    }
-
     NotificationModel notificationModel = NotificationModel.fromBundle(notification);
+    NotificationAndroidModel notificationAndroidModel = notificationModel.getAndroid();
     NotificationAndroidPressActionModel pressActionBundle =
         NotificationAndroidPressActionModel.fromBundle(pressAction);
 
@@ -179,6 +188,14 @@ public class ReceiverService extends Service {
 
     EventBus.post(new NotificationEvent(TYPE_ACTION_PRESS, notificationModel, extras));
 
+    if (notificationModel.getAndroid().getAutoCancel()) {
+      NotificationManagerCompat notificationManagerCompat =
+          NotificationManagerCompat.from(getApplicationContext());
+
+      notificationManagerCompat.cancel(
+          notificationAndroidModel.getTag(), notificationModel.getId().hashCode());
+    }
+
     String launchActivity = pressActionBundle.getLaunchActivity();
     String mainComponent = pressActionBundle.getMainComponent();
 
@@ -190,6 +207,17 @@ public class ReceiverService extends Service {
           launchActivity,
           mainComponent,
           pressActionBundle.getLaunchActivityFlags());
+
+      int targetSdkVersion =
+          ContextHolder.getApplicationContext().getApplicationInfo().targetSdkVersion;
+
+      // Close notification drawer if targetSdkVersion is Android 11 and lower
+      // See
+      // https://developer.android.com/about/versions/12/behavior-changes-all#close-system-dialogs
+      if (targetSdkVersion < Build.VERSION_CODES.S) {
+        ContextHolder.getApplicationContext()
+            .sendBroadcast(new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS));
+      }
     }
   }
 
@@ -219,7 +247,7 @@ public class ReceiverService extends Service {
             getApplicationContext(),
             initialNotificationEvent.getNotificationModel().getHashCode(),
             launchIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT);
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
 
     try {
       pendingContentIntent.send();

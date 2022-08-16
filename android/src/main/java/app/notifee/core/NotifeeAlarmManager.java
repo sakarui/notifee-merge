@@ -1,17 +1,36 @@
 package app.notifee.core;
 
+/*
+ * Copyright (c) 2016-present Invertase Limited & Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this library except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
 import static app.notifee.core.ContextHolder.getApplicationContext;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import androidx.core.app.AlarmManagerCompat;
 import app.notifee.core.database.WorkDataEntity;
 import app.notifee.core.database.WorkDataRepository;
 import app.notifee.core.model.NotificationModel;
 import app.notifee.core.model.TimestampTriggerModel;
+import app.notifee.core.utility.AlarmUtils;
 import app.notifee.core.utility.ObjectUtils;
 import com.google.android.gms.tasks.Continuation;
 import com.google.android.gms.tasks.Task;
@@ -58,7 +77,7 @@ class NotifeeAlarmManager {
 
           NotificationModel notificationModel = NotificationModel.fromBundle(notificationBundle);
 
-          return NotificationManager.displayNotification(notificationModel)
+          return NotificationManager.displayNotification(notificationModel, triggerBundle)
               .addOnCompleteListener(
                   displayNotificationTask -> {
                     if (!displayNotificationTask.isSuccessful()) {
@@ -68,10 +87,20 @@ class NotifeeAlarmManager {
                           displayNotificationTask.getException());
                     } else {
                       if (triggerBundle.containsKey("repeatFrequency")
-                          && triggerBundle.getDouble("repeatFrequency") != -1) {
+                          && ObjectUtils.getInt(triggerBundle.get("repeatFrequency")) != -1) {
                         TimestampTriggerModel trigger =
                             TimestampTriggerModel.fromBundle(triggerBundle);
-                        scheduleTimestampTriggerNotification(notificationModel, trigger, false);
+                        // Ensure trigger is in the future and the latest timestamp is updated in
+                        // the database
+                        trigger.setNextTimestamp();
+                        scheduleTimestampTriggerNotification(notificationModel, trigger);
+                        WorkDataRepository.getInstance(getApplicationContext())
+                            .update(
+                                new WorkDataEntity(
+                                    id,
+                                    workDataEntity.getNotification(),
+                                    ObjectUtils.bundleToBytes(triggerBundle),
+                                    true));
                       } else {
                         // not repeating, delete database entry if work is a one-time request
                         WorkDataRepository.getInstance(getApplicationContext()).deleteById(id);
@@ -92,10 +121,6 @@ class NotifeeAlarmManager {
             });
   }
 
-  private static AlarmManager getAlarmManager() {
-    return (AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
-  }
-
   public static PendingIntent getAlarmManagerIntentForNotification(String notificationId) {
     try {
       Context context = getApplicationContext();
@@ -105,7 +130,8 @@ class NotifeeAlarmManager {
           context,
           notificationId.hashCode(),
           notificationIntent,
-          PendingIntent.FLAG_UPDATE_CURRENT);
+          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+
     } catch (Exception e) {
       Logger.e(TAG, "Unable to create AlarmManager intent", e);
     }
@@ -114,24 +140,31 @@ class NotifeeAlarmManager {
   }
 
   static void scheduleTimestampTriggerNotification(
-      NotificationModel notificationModel, TimestampTriggerModel timestampTrigger, boolean isNew) {
+      NotificationModel notificationModel, TimestampTriggerModel timestampTrigger) {
 
     PendingIntent pendingIntent = getAlarmManagerIntentForNotification(notificationModel.getId());
-    AlarmManager alarmManager = getAlarmManager();
 
-    // Date in milliseconds
-    Long timestamp = timestampTrigger.getTimestamp();
+    AlarmManager alarmManager = AlarmUtils.getAlarmManager();
 
-    // If trigger is repeating, calculate next trigger date
-    if (!isNew && timestampTrigger.getRepeatFrequency() != null) {
-      timestamp = timestampTrigger.getNextTimestamp();
+    // Verify we can call setExact APIs to avoid a crash, but it requires an Android S+ symbol
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+      if (!alarmManager.canScheduleExactAlarms()) {
+        System.err.println(
+            "Missing SCHEDULE_EXACT_ALARM permission. Trigger not scheduled. See:"
+                + " https://notifee.app/react-native/docs/triggers#android-12-limitations");
+        return;
+      }
     }
+
+    // Ensure timestamp is always in the future when scheduling the alarm
+    timestampTrigger.setNextTimestamp();
 
     if (timestampTrigger.getAllowWhileIdle()) {
       AlarmManagerCompat.setExactAndAllowWhileIdle(
-          alarmManager, AlarmManager.RTC_WAKEUP, timestamp, pendingIntent);
+          alarmManager, AlarmManager.RTC_WAKEUP, timestampTrigger.getTimestamp(), pendingIntent);
     } else {
-      AlarmManagerCompat.setExact(alarmManager, AlarmManager.RTC_WAKEUP, timestamp, pendingIntent);
+      AlarmManagerCompat.setExact(
+          alarmManager, AlarmManager.RTC_WAKEUP, timestampTrigger.getTimestamp(), pendingIntent);
     }
   }
 
@@ -142,7 +175,7 @@ class NotifeeAlarmManager {
 
   public static void cancelNotification(String notificationId) {
     PendingIntent pendingIntent = getAlarmManagerIntentForNotification(notificationId);
-    AlarmManager alarmManager = getAlarmManager();
+    AlarmManager alarmManager = AlarmUtils.getAlarmManager();
     if (pendingIntent != null) {
       alarmManager.cancel(pendingIntent);
     }
@@ -174,7 +207,7 @@ class NotifeeAlarmManager {
 
   /* On reboot, reschedule trigger notifications created via alarm manager  */
   void rescheduleNotification(WorkDataEntity workDataEntity) {
-    if (workDataEntity.getNotification() != null && workDataEntity.getTrigger() != null) {
+    if (workDataEntity.getNotification() == null || workDataEntity.getTrigger() == null) {
       return;
     }
 
@@ -185,12 +218,16 @@ class NotifeeAlarmManager {
     NotificationModel notificationModel =
         NotificationModel.fromBundle(ObjectUtils.bytesToBundle(notificationBytes));
 
-    int triggerType = (int) triggerBundle.getDouble("type");
+    int triggerType = ObjectUtils.getInt(triggerBundle.get("type"));
 
     switch (triggerType) {
       case 0:
         TimestampTriggerModel trigger = TimestampTriggerModel.fromBundle(triggerBundle);
-        scheduleTimestampTriggerNotification(notificationModel, trigger, false);
+        if (!trigger.getWithAlarmManager()) {
+          return;
+        }
+
+        scheduleTimestampTriggerNotification(notificationModel, trigger);
         break;
       case 1:
         // TODO: support interval triggers with alarm manager
@@ -199,6 +236,7 @@ class NotifeeAlarmManager {
   }
 
   void rescheduleNotifications() {
+    Logger.d(TAG, "Reschedule Notifications on reboot");
     getScheduledNotifications()
         .addOnCompleteListener(
             task -> {

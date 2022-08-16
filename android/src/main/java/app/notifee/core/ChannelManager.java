@@ -1,5 +1,22 @@
 package app.notifee.core;
 
+/*
+ * Copyright (c) 2016-present Invertase Limited & Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this library except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
 import static androidx.core.app.NotificationManagerCompat.IMPORTANCE_NONE;
 
 import android.app.NotificationChannel;
@@ -175,6 +192,38 @@ public class ChannelManager {
         });
   }
 
+  static Task<Boolean> isChannelBlocked(String channelId) {
+    return Tasks.call(
+        executorService,
+        () -> {
+          if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false;
+
+          NotificationChannel channel =
+              NotificationManagerCompat.from(ContextHolder.getApplicationContext())
+                  .getNotificationChannel(channelId);
+
+          if (channel == null) {
+            return false;
+          }
+
+          return IMPORTANCE_NONE == channel.getImportance();
+        });
+  }
+
+  static Task<Boolean> isChannelCreated(String channelId) {
+    return Tasks.call(
+        executorService,
+        () -> {
+          if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false;
+
+          NotificationChannel channel =
+              NotificationManagerCompat.from(ContextHolder.getApplicationContext())
+                  .getNotificationChannel(channelId);
+
+          return channel != null;
+        });
+  }
+
   static Task<List<Bundle>> getChannelGroups() {
     return Tasks.call(
         executorService,
@@ -236,6 +285,7 @@ public class ChannelManager {
 
     // can be null, don't include if null
     if (channel.getSound() != null) {
+      channelBundle.putString("soundURI", channel.getSound().toString());
       // try to parse uri
       String soundValue = ResourceUtils.getSoundName(channel.getSound());
       if (soundValue != null) channelBundle.putString("sound", soundValue);

@@ -1,16 +1,17 @@
 {
   "name": "@notifications/root",
   "private": true,
+  "license": "Apache-2.0",
   "scripts": {
-    "prepare": "yarn lerna:link && lerna run prepare && (yarn tests_rn:ios:pod:install || true)",
+    "prepare": "yarn lerna:link && lerna run prepare && yarn build:core:ios && (yarn tests_rn:ios:pod:install || true)",
     "precommit": "yarn build:all:clean && yarn prepare && yarn build:all && yarn gen:reference && yarn validate:all && yarn test:all",
     "build:all": "yarn build:core && yarn build:rn",
     "build:core": "yarn build:core:android && yarn build:core:ios",
-    "build:core:android": "cd ./android && ./gradlew assembleRelease compileDebugJavaWithJavac compileDebugUnitTestJavaWithJavac",
-    "build:core:ios": "cd ./ios && xcodebuild BITCODE_GENERATION_MODE=bitcode OTHER_CFLAGS=-fembed-bitcode -workspace NotifeeCore.xcworkspace -scheme Framework ONLY_ACTIVE_ARCH=NO -configuration Release -sdk iphoneos -UseModernBuildSystem=YES clean build",
-    "build:all:clean": "rimraf android/build && rimraf android/.gradle && rimraf ios/build && lerna run build:clean",
+    "build:core:android": "cd ./android && ./gradlew assembleRelease compileDebugJavaWithJavac compileDebugUnitTestJavaWithJavac publish",
+    "build:all:clean": "rimraf android/build && rimraf packages/react-native/android/libs && rimraf android/.gradle && rimraf ios/build && lerna run build:clean",
     "build:rn": "cd packages/react-native && yarn build",
     "build:rn:watch": "cd packages/react-native && yarn build:watch",
+    "build:core:ios": "./build_ios_core.sh",
     "format:all": "yarn format:core && yarn format:rn",
     "format:rn": "yarn format:rn:android && yarn format:rn:ios",
     "format:rn:android": "cd packages/react-native/android && yarn format:android",
@@ -18,46 +19,48 @@
     "format:core": "yarn format:core:android && yarn format:core:ios",
     "format:core:android": "cd android && yarn format:android",
     "format:core:ios": "cd ios && yarn format:ios",
-    "format:android": "google-java-format --replace -i $(find . -type f -name \"*.java\")",
-    "format:ios": "npx clang-format -i --glob=\"*/**/*.{h,cpp,m,mm}\" --style=Google",
+    "format:android": "yarn google-java-format --replace -i $(find . -type f -name \"*.java\")",
+    "format:ios": "yarn clang-format -i --glob=\"*/**/*.{h,cpp,m,mm}\" --style=Google",
     "validate:all": "yarn validate:all:js && yarn validate:all:ts && yarn gen:reference",
     "validate:all:js": "eslint . --ext .js,.jsx,.ts,.tsx --resolve-plugins-relative-to .",
     "validate:all:ts": "tsc --project ./",
     "lerna:bootstrap": "lerna bootstrap",
     "lerna:link": "lerna link && lerna exec -- yarn link",
     "lerna:clean": "lerna clean",
-    "gen:reference": "rimraf docs/typedoc.json docs/typedoc.min.json && node scripts/generate-typedoc.js",
+    "gen:reference": "rimraf docs-react-native/typedoc.json docs-react-native/typedoc.min.json && node scripts/generate-typedoc.js",
     "test:all": "yarn test:core:android && yarn tests_rn:test && yarn tests_rn:android:test && yarn tests_rn:ios:test",
     "test:core:android": "cd android && ./gradlew testDebugUnit",
     "tests_rn:packager": "cd tests_react_native && npx react-native start",
     "tests_rn:packager:reset-cache": "cd tests_react_native && npx react-native start --reset-cache",
-    "run:android": "cd tests_react_native && npx react-native run-android  --variant 'debug' --appIdSuffix dev",
-    "run:ios": "cd tests_react_native && npx react-native run-ios --scheme=Notifee",
+    "run:android": "cd tests_react_native && npx react-native run-android  --variant 'debug'",
+    "run:ios": "cd tests_react_native && npx react-native run-ios --scheme=Notifee --simulator 'iPhone 12'",
     "tests_rn:test": "cd tests_react_native && jest",
     "tests_rn:test-watch": "cd tests_react_native && jest --watch",
     "tests_rn:test-coverage": "cd tests_react_native && jest --coverage",
-    "tests_rn:android:test": "cd tests_react_native && npx cavy-cli run-android --appIdSuffix dev",
-    "tests_rn:ios:test": "cd tests_react_native && npx cavy-cli run-ios --scheme=Notifee",
-    "tests_rn:ios:pod:install": "cd tests_react_native && cd ios && pod install && cd .."
+    "tests_rn:android:build": "cd tests_react_native/android && ./gradlew assembleDebug -DtestBuildType=debug",
+    "tests_rn:android:test": "cd tests_react_native && npm_config_yes=true npx cavy-cli run-android --no-jetifier",
+    "tests_rn:ios:test": "cd tests_react_native && npm_config_yes=true npx cavy-cli run-ios --scheme=Notifee --simulator 'iPhone 12'",
+    "tests_rn:ios:pod:install": "cd tests_react_native && npm_config_yes=true npx pod-install && cd .."
   },
   "devDependencies": {
-    "@react-native-community/eslint-config": "^3.0.0",
-    "@types/node": "^14.17.3",
-    "@typescript-eslint/eslint-plugin": "^4.27.0",
-    "@typescript-eslint/parser": "^4.27.0",
-    "clang-format": "^1.5.0",
-    "eslint": "^7.28.0",
+    "@react-native-community/eslint-config": "^3.0.1",
+    "@types/node": "^17.0.21",
+    "@typescript-eslint/eslint-plugin": "^5.14.0",
+    "@typescript-eslint/parser": "^5.14.0",
+    "clang-format": "^1.6.0",
+    "eslint": "^7.32.0",
     "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-prettier": "^3.4.0",
-    "eslint-plugin-react": "^7.24.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "eslint-plugin-react": "^7.29.3",
+    "google-java-format": "^1.0.1",
     "lerna": "^4.0.0",
     "prettier": "^2.3.1",
     "rimraf": "^3.0.2",
     "typedoc": "^0.19.2",
-    "typescript": "^4.3.4"
+    "typescript": "^4.6.2"
   },
   "resolutions": {
-    "@types/node": "^14"
+    "@types/node": "^17.0.21"
   },
   "lint-staged": {
     "packages/**/*.js": [
@@ -75,7 +78,7 @@
   },
   "workspaces": {
     "packages": [
-      "packages/react-native",
+      "packages/*",
       "tests_react_native"
     ],
     "nohoist": [
@@ -85,6 +88,8 @@
       "**/cavy/**",
       "**/cavy-native-reporter",
       "**/cavy-native-reporter/**",
+      "**/chalk/",
+      "**/chalk/**",
       "**/prop-types",
       "**/prop-types/**",
       "**/patch-package",
@@ -96,7 +101,7 @@
     ]
   },
   "dependencies": {
-    "axios": "^0.21.1",
-    "shelljs": "^0.8.4"
+    "axios": "^0.26.0",
+    "shelljs": "^0.8.5"
   }
 }

@@ -1,20 +1,20 @@
 buildscript {
   ext {
-    buildToolsVersion = '30.0.3'
-    ndkVersion = '20.1.5948944'
+    buildToolsVersion = '31.0.0'
+    ndkVersion = "21.4.7075529"
     minSdkVersion = 21
-    compileSdkVersion = 29
-    targetSdkVersion = 29
+    compileSdkVersion = 31
+    targetSdkVersion = 31
+    enableHermes = true
   }
 
   repositories {
     google()
     mavenCentral()
-    jcenter()
   }
   dependencies {
-    classpath 'com.android.tools.build:gradle:4.1.1'
-    classpath 'com.google.gms:google-services:4.3.8'
+    classpath 'com.android.tools.build:gradle:7.0.3'
+    classpath 'com.google.gms:google-services:4.3.10'
   }
 }
 
@@ -24,7 +24,6 @@ allprojects {
   }
 
   repositories {
-    google()
     mavenLocal()
     maven {
       // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
@@ -37,7 +36,15 @@ allprojects {
     maven {
       url "$rootDir/../node_modules/detox/Detox-android"
     }
-    jcenter()
+    mavenCentral {
+      // We don't want to fetch react-native from Maven Central as there are
+      // older versions over there.
+      content {
+        excludeGroup "com.facebook.react"
+      }
+    }
+    google()
+    maven { url 'https://www.jitpack.io' }
   }
 
 }

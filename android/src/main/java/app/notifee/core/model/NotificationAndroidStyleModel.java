@@ -1,5 +1,22 @@
 package app.notifee.core.model;
 
+/*
+ * Copyright (c) 2016-present Invertase Limited & Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this library except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import androidx.annotation.Keep;
@@ -8,6 +25,7 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.app.Person;
 import androidx.core.graphics.drawable.IconCompat;
 import app.notifee.core.Logger;
+import app.notifee.core.utility.ObjectUtils;
 import app.notifee.core.utility.ResourceUtils;
 import app.notifee.core.utility.TextUtils;
 import com.google.android.gms.tasks.Task;
@@ -96,7 +114,7 @@ public class NotificationAndroidStyleModel {
 
   @Nullable
   public Task<NotificationCompat.Style> getStyleTask(Executor executor) {
-    int type = (int) mNotificationAndroidStyleBundle.getDouble("type");
+    int type = ObjectUtils.getInt(mNotificationAndroidStyleBundle.get("type"));
     Task<NotificationCompat.Style> styleTask = null;
 
     switch (type) {
@@ -156,9 +174,18 @@ public class NotificationAndroidStyleModel {
             }
           }
 
+          String largeIcon = null;
+
           if (mNotificationAndroidStyleBundle.containsKey("largeIcon")) {
-            String largeIcon =
-                Objects.requireNonNull(mNotificationAndroidStyleBundle.getString("largeIcon"));
+            largeIcon = mNotificationAndroidStyleBundle.getString("largeIcon");
+
+            // largeIcon has been specified to be null for BigPicture
+            if (largeIcon == null) {
+              bigPictureStyle.bigLargeIcon(null);
+            }
+          }
+
+          if (largeIcon != null) {
             Bitmap largeIconBitmap = null;
 
             try {
@@ -292,7 +319,7 @@ public class NotificationAndroidStyleModel {
           for (int i = 0; i < Objects.requireNonNull(messages).size(); i++) {
             Bundle message = messages.get(i);
             Person messagePerson = null;
-            long timestamp = (long) message.getDouble("timestamp");
+            long timestamp = ObjectUtils.getLong(message.get("timestamp"));
 
             if (message.containsKey("person")) {
               messagePerson =

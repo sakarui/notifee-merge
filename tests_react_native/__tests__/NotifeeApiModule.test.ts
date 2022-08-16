@@ -1,13 +1,17 @@
 // @ts-ignore
 import NotifeeApiModule from '@notifee/react-native/src/NotifeeApiModule';
-import Notifee from '@notifee/react-native';
+import Notifee, { AuthorizationStatus } from '@notifee/react-native';
 
 import {
   /* @ts-ignore */
   mockNotifeeNativeModule,
 } from '@notifee/react-native/src/NotifeeNativeModule';
-import { AndroidChannel } from '@notifee/react-native/src/types/NotificationAndroid';
+import {
+  AndroidChannel,
+  AndroidNotificationSetting,
+} from '@notifee/react-native/src/types/NotificationAndroid';
 import { setPlatform } from './testSetup';
+import { TriggerNotification, TriggerType } from '@notifee/react-native/src';
 
 jest.mock('@notifee/react-native/src/NotifeeNativeModule');
 
@@ -27,6 +31,40 @@ describe('Notifee Api Module', () => {
   });
   test('Constructor', () => {
     expect(apiModule).not.toBeNull();
+  });
+
+  test('getDisplayedNotifications', async () => {
+    const notification = {
+      id: 'notification',
+      date: new Date(Date.now()).getTime(),
+      notification: {
+        id: 'notification',
+      },
+    };
+    const notifications = [notification];
+    mockNotifeeNativeModule.getDisplayedNotifications.mockResolvedValue(notifications);
+
+    const res = await apiModule.getDisplayedNotifications();
+    expect(res.length).toBe(1);
+    expect(res[0]).toBe(notification);
+    expect(mockNotifeeNativeModule.getDisplayedNotifications).toBeCalledTimes(1);
+  });
+
+  test('getTriggerNotifications', async () => {
+    const triggerNotification: TriggerNotification = {
+      notification: { id: 'notification' },
+      trigger: {
+        type: TriggerType.TIMESTAMP,
+        timestamp: new Date(Date.now()).getTime(),
+      },
+    };
+
+    const triggerNotifications = [triggerNotification];
+    mockNotifeeNativeModule.getTriggerNotifications.mockResolvedValue(triggerNotifications);
+
+    const res = await apiModule.getTriggerNotifications();
+    expect(res).toBe(triggerNotifications);
+    expect(mockNotifeeNativeModule.getTriggerNotifications).toBeCalledTimes(1);
   });
 
   test('getTriggerNotificationIds', async () => {
@@ -57,6 +95,27 @@ describe('Notifee Api Module', () => {
 
     expect(res).toBe(undefined);
     expect(mockNotifeeNativeModule.cancelTriggerNotifications).toBeCalledTimes(1);
+  });
+
+  test('cancelAllNotifications(ids)', async () => {
+    const res = await apiModule.cancelAllNotifications(['id']);
+
+    expect(res).toBe(undefined);
+    expect(mockNotifeeNativeModule.cancelAllNotificationsWithIds).nthCalledWith(1, ['id']);
+  });
+
+  test('cancelDisplayedNotifications(ids)', async () => {
+    const res = await apiModule.cancelDisplayedNotifications(['id']);
+
+    expect(res).toBe(undefined);
+    expect(mockNotifeeNativeModule.cancelDisplayedNotificationsWithIds).nthCalledWith(1, ['id']);
+  });
+
+  test('cancelTriggerNotifications(ids)', async () => {
+    const res = await apiModule.cancelTriggerNotifications(['id']);
+
+    expect(res).toBe(undefined);
+    expect(mockNotifeeNativeModule.cancelTriggerNotificationsWithIds).nthCalledWith(1, ['id']);
   });
 
   test('cancelNotification', async () => {
@@ -118,6 +177,147 @@ describe('Notifee Api Module', () => {
         name: 'channel',
         vibration: true,
         visibility: 0,
+      });
+    });
+  });
+
+  describe('isChannelBlocked', () => {
+    test('on iOS', async () => {
+      setPlatform('ios');
+      const channel: AndroidChannel = {
+        id: 'channel-id',
+        name: 'channel',
+      };
+
+      const res = await apiModule.isChannelBlocked(channel.id);
+
+      expect(res).toBe(false);
+      expect(mockNotifeeNativeModule.createChannel).not.toBeCalled();
+    });
+
+    test('on Android', async () => {
+      setPlatform('android');
+      const channel: AndroidChannel = {
+        id: 'channel-id',
+        name: 'channel',
+      };
+
+      const res = await apiModule.isChannelBlocked(channel.id);
+
+      expect(res).toBe(false);
+      expect(mockNotifeeNativeModule.createChannel).not.toBeCalled();
+    });
+  });
+
+  describe('isChannelCreated', () => {
+    test('on iOS', async () => {
+      setPlatform('ios');
+      const channel: AndroidChannel = {
+        id: 'channel-id',
+        name: 'channel',
+      };
+
+      const res = await apiModule.isChannelCreated(channel.id);
+
+      expect(res).toBe(true);
+      expect(mockNotifeeNativeModule.createChannel).not.toBeCalled();
+    });
+
+    test('on Android', async () => {
+      setPlatform('android');
+      const channel: AndroidChannel = {
+        id: 'channel-id',
+        name: 'channel',
+      };
+
+      const res = await apiModule.isChannelCreated(channel.id);
+
+      expect(res).toBe(true);
+      expect(mockNotifeeNativeModule.createChannel).not.toBeCalled();
+    });
+  });
+
+  describe('getNotificationSettings', () => {
+    describe('on Android', () => {
+      beforeEach(() => {
+        setPlatform('android');
+      });
+
+      test('return android settings with IOSNotificationSettings set to default values', async () => {
+        mockNotifeeNativeModule.getNotificationSettings.mockResolvedValue({
+          authorizationStatus: AuthorizationStatus.AUTHORIZED,
+          android: {
+            alarm: AndroidNotificationSetting.DISABLED,
+          },
+        });
+        const settings = await apiModule.getNotificationSettings();
+        expect(settings).toEqual({
+          authorizationStatus: AuthorizationStatus.AUTHORIZED,
+          android: {
+            alarm: 0,
+          },
+          ios: {
+            alert: 1,
+            badge: 1,
+            criticalAlert: 1,
+            showPreviews: 1,
+            sound: 1,
+            carPlay: 1,
+            lockScreen: 1,
+            announcement: 1,
+            notificationCenter: 1,
+            inAppNotificationSettings: 1,
+            authorizationStatus: AuthorizationStatus.AUTHORIZED,
+          },
+          web: {},
+        });
+      });
+    });
+
+    describe('on iOS', () => {
+      beforeEach(() => {
+        setPlatform('iOS');
+      });
+
+      test('return web settings with AndroidNotificationSettings set to default values', async () => {
+        mockNotifeeNativeModule.getNotificationSettings.mockResolvedValue({
+          authorizationStatus: AuthorizationStatus.NOT_DETERMINED,
+          ios: {
+            alert: 1,
+            badge: 1,
+            criticalAlert: 1,
+            showPreviews: 1,
+            sound: 1,
+            carPlay: 1,
+            lockScreen: 1,
+            announcement: 1,
+            notificationCenter: 1,
+            inAppNotificationSettings: 1,
+            authorizationStatus: AuthorizationStatus.NOT_DETERMINED,
+          },
+          web: {},
+        });
+        const settings = await apiModule.getNotificationSettings();
+        expect(settings).toEqual({
+          authorizationStatus: AuthorizationStatus.NOT_DETERMINED,
+          android: {
+            alarm: AndroidNotificationSetting.ENABLED,
+          },
+          ios: {
+            alert: 1,
+            badge: 1,
+            criticalAlert: 1,
+            showPreviews: 1,
+            sound: 1,
+            carPlay: 1,
+            lockScreen: 1,
+            announcement: 1,
+            notificationCenter: 1,
+            inAppNotificationSettings: 1,
+            authorizationStatus: AuthorizationStatus.NOT_DETERMINED,
+          },
+          web: {},
+        });
       });
     });
   });

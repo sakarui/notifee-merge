@@ -1,18 +1,27 @@
-//
-//  Notifee.m
-//  NotifeeCore
-//
-//  Created by Mike on 31/01/2020.
-//  Copyright © 2020 Invertase. All rights reserved.
-//
-
-#import "Public/NotifeeCore.h"
+/**
+ * Copyright (c) 2016-present Invertase Limited & Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this library except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 
 #import <UIKit/UIKit.h>
-#import "Private/NotifeeCore+UNUserNotificationCenter.h"
-#import "Private/NotifeeCoreDelegateHolder.h"
-#import "Private/NotifeeCoreExtensionHelper.h"
-#import "Private/NotifeeCoreUtil.h"
+
+#import "NotifeeCore+UNUserNotificationCenter.h"
+#import "NotifeeCore.h"
+#import "NotifeeCoreDelegateHolder.h"
+#import "NotifeeCoreExtensionHelper.h"
+#import "NotifeeCoreUtil.h"
 
 @implementation NotifeeCore
 
@@ -66,6 +75,78 @@
 }
 
 /**
+ * Cancel currently displayed or pending trigger notifications by ids.
+ *
+ * @param notificationType NSInteger
+ * @param ids NSInteger
+ * @param block notifeeMethodVoidBlock
+ */
++ (void)cancelAllNotificationsWithIds:(NSInteger)notificationType
+                              withIds:(NSArray<NSString *> *)ids
+                            withBlock:(notifeeMethodVoidBlock)block {
+  UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+
+  // cancel displayed notifications
+  if (notificationType == NotifeeCoreNotificationTypeDisplayed ||
+      notificationType == NotifeeCoreNotificationTypeAll)
+    [center removeDeliveredNotificationsWithIdentifiers:ids];
+
+  // cancel trigger notifications
+  if (notificationType == NotifeeCoreNotificationTypeTrigger ||
+      notificationType == NotifeeCoreNotificationTypeAll)
+    [center removePendingNotificationRequestsWithIdentifiers:ids];
+  block(nil);
+}
+
++ (void)getDisplayedNotifications:(notifeeMethodNSArrayBlock)block {
+  UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+  NSMutableArray *triggerNotifications = [[NSMutableArray alloc] init];
+  [center getDeliveredNotificationsWithCompletionHandler:^(
+              NSArray<UNNotification *> *_Nonnull deliveredNotifications) {
+    for (UNNotification *deliveredNotification in deliveredNotifications) {
+      NSMutableDictionary *triggerNotification = [NSMutableDictionary dictionary];
+      triggerNotification[@"id"] = deliveredNotification.request.identifier;
+
+      triggerNotification[@"date"] =
+          [NotifeeCoreUtil convertToTimestamp:deliveredNotification.date];
+      triggerNotification[@"notification"] =
+          deliveredNotification.request.content.userInfo[kNotifeeUserInfoNotification];
+      triggerNotification[@"trigger"] =
+          deliveredNotification.request.content.userInfo[kNotifeeUserInfoTrigger];
+
+      if (triggerNotification[@"notification"] == nil) {
+        // parse remote notification
+        triggerNotification[@"notification"] =
+            [NotifeeCoreUtil parseUNNotificationRequest:deliveredNotification.request];
+      }
+
+      [triggerNotifications addObject:triggerNotification];
+    }
+    block(nil, triggerNotifications);
+  }];
+}
+
++ (void)getTriggerNotifications:(notifeeMethodNSArrayBlock)block {
+  UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+
+  [center getPendingNotificationRequestsWithCompletionHandler:^(
+              NSArray<UNNotificationRequest *> *_Nonnull requests) {
+    NSMutableArray *triggerNotifications = [[NSMutableArray alloc] init];
+
+    for (UNNotificationRequest *request in requests) {
+      NSMutableDictionary *triggerNotification = [NSMutableDictionary dictionary];
+
+      triggerNotification[@"notification"] = request.content.userInfo[kNotifeeUserInfoNotification];
+      triggerNotification[@"trigger"] = request.content.userInfo[kNotifeeUserInfoTrigger];
+
+      [triggerNotifications addObject:triggerNotification];
+    }
+
+    block(nil, triggerNotifications);
+  }];
+}
+
+/**
  * Retrieve a NSArray of pending UNNotificationRequest for the application.
  * Resolves a NSArray of UNNotificationRequest identifiers.
  *
@@ -102,13 +183,16 @@
                                                                         trigger:nil];
   UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
 
+  NSMutableDictionary *notificationDetail = [notification mutableCopy];
+  notificationDetail[@"remote"] = @NO;
+
   [center addNotificationRequest:request
            withCompletionHandler:^(NSError *error) {
              if (error == nil) {
                [NotifeeCoreUtil didReceiveNotifeeCoreEvent:@{
                  @"type" : @(NotifeeCoreEventTypeDelivered),
                  @"detail" : @{
-                   @"notification" : notification,
+                   @"notification" : notificationDetail,
                  }
                }];
              }
@@ -134,10 +218,15 @@
     return block(nil);
   }
 
-  UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:notification[@"id"]
+  NSString *identifier = notification[@"id"];
+
+  UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:identifier
                                                                         content:content
                                                                         trigger:unTrigger];
   UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+
+  NSMutableDictionary *notificationDetail = [notification mutableCopy];
+  notificationDetail[@"remote"] = @NO;
 
   [center addNotificationRequest:request
            withCompletionHandler:^(NSError *error) {
@@ -145,7 +234,7 @@
                [NotifeeCoreUtil didReceiveNotifeeCoreEvent:@{
                  @"type" : @(NotifeeCoreEventTypeTriggerNotificationCreated),
                  @"detail" : @{
-                   @"notification" : notification,
+                   @"notification" : notificationDetail,
                  }
                }];
              }
@@ -179,8 +268,12 @@
     content.body = notification[@"body"];
   }
 
+  NSMutableDictionary *userInfo = [[NSMutableDictionary alloc] init];
+
   // data
-  NSMutableDictionary *userInfo = [notification[@"data"] mutableCopy];
+  if (notification[@"data"] != nil) {
+    userInfo = [notification[@"data"] mutableCopy];
+  }
 
   // attach a copy of the original notification payload into the data object,
   // for internal use
@@ -195,17 +288,17 @@
   content.badge = iosDict[@"badgeCount"];
 
   // categoryId
-  if (iosDict[@"categoryId"] != nil) {
+  if (iosDict[@"categoryId"] != nil && iosDict[@"categoryId"] != [NSNull null]) {
     content.categoryIdentifier = iosDict[@"categoryId"];
   }
 
   // launchImageName
-  if (iosDict[@"launchImageName"] != nil) {
+  if (iosDict[@"launchImageName"] != nil && iosDict[@"launchImageName"] != [NSNull null]) {
     content.launchImageName = iosDict[@"launchImageName"];
   }
 
   // critical, criticalVolume, sound
-  if (iosDict[@"critical"] != nil) {
+  if (iosDict[@"critical"] != nil && iosDict[@"critical"] != [NSNull null]) {
     UNNotificationSound *notificationSound;
     BOOL criticalSound = [iosDict[@"critical"] boolValue];
     NSNumber *criticalSoundVolume = iosDict[@"criticalVolume"];
@@ -282,8 +375,10 @@
     }
   }
 
-  // attachments
-  if (iosDict[@"attachments"] != nil) {
+  // Ignore downloading attachments here if remote notifications via NSE
+  BOOL remote = [notification[@"remote"] boolValue];
+
+  if (iosDict[@"attachments"] != nil && !remote) {
     content.attachments =
         [NotifeeCoreUtil notificationAttachmentsFromDictionaryArray:iosDict[@"attachments"]];
   }
@@ -494,20 +589,21 @@
   [center
       getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *_Nonnull settings) {
         NSMutableDictionary *settingsDictionary = [NSMutableDictionary dictionary];
+        NSMutableDictionary *iosDictionary = [NSMutableDictionary dictionary];
 
-        // authorizedStatus
-        NSNumber *authorizedStatus = @-1;
+        // authorizationStatus
+        NSNumber *authorizationStatus = @-1;
         if (settings.authorizationStatus == UNAuthorizationStatusNotDetermined) {
-          authorizedStatus = @-1;
+          authorizationStatus = @-1;
         } else if (settings.authorizationStatus == UNAuthorizationStatusDenied) {
-          authorizedStatus = @0;
+          authorizationStatus = @0;
         } else if (settings.authorizationStatus == UNAuthorizationStatusAuthorized) {
-          authorizedStatus = @1;
+          authorizationStatus = @1;
         }
 
         if (@available(iOS 12.0, *)) {
           if (settings.authorizationStatus == UNAuthorizationStatusProvisional) {
-            authorizedStatus = @2;
+            authorizationStatus = @2;
           }
         }
 
@@ -523,40 +619,44 @@
         }
 
         if (@available(iOS 13.0, *)) {
-          settingsDictionary[@"announcement"] =
+          iosDictionary[@"announcement"] =
               [NotifeeCoreUtil numberForUNNotificationSetting:settings.announcementSetting];
         } else {
-          settingsDictionary[@"announcement"] = @-1;
+          iosDictionary[@"announcement"] = @-1;
         }
 
         if (@available(iOS 12.0, *)) {
-          settingsDictionary[@"criticalAlert"] =
+          iosDictionary[@"criticalAlert"] =
               [NotifeeCoreUtil numberForUNNotificationSetting:settings.criticalAlertSetting];
         } else {
-          settingsDictionary[@"criticalAlert"] = @-1;
+          iosDictionary[@"criticalAlert"] = @-1;
         }
 
         if (@available(iOS 12.0, *)) {
-          settingsDictionary[@"inAppNotificationSettings"] =
+          iosDictionary[@"inAppNotificationSettings"] =
               settings.providesAppNotificationSettings ? @1 : @0;
         } else {
-          settingsDictionary[@"inAppNotificationSettings"] = @-1;
+          iosDictionary[@"inAppNotificationSettings"] = @-1;
         }
 
-        settingsDictionary[@"showPreviews"] = showPreviews;
-        settingsDictionary[@"authorizationStatus"] = authorizedStatus;
-        settingsDictionary[@"alert"] =
+        iosDictionary[@"showPreviews"] = showPreviews;
+        iosDictionary[@"authorizationStatus"] = authorizationStatus;
+        iosDictionary[@"alert"] =
             [NotifeeCoreUtil numberForUNNotificationSetting:settings.alertSetting];
-        settingsDictionary[@"badge"] =
+        iosDictionary[@"badge"] =
             [NotifeeCoreUtil numberForUNNotificationSetting:settings.badgeSetting];
-        settingsDictionary[@"sound"] =
+        iosDictionary[@"sound"] =
             [NotifeeCoreUtil numberForUNNotificationSetting:settings.soundSetting];
-        settingsDictionary[@"carPlay"] =
+        iosDictionary[@"carPlay"] =
             [NotifeeCoreUtil numberForUNNotificationSetting:settings.carPlaySetting];
-        settingsDictionary[@"lockScreen"] =
+        iosDictionary[@"lockScreen"] =
             [NotifeeCoreUtil numberForUNNotificationSetting:settings.lockScreenSetting];
-        settingsDictionary[@"notificationCenter"] =
+        iosDictionary[@"notificationCenter"] =
             [NotifeeCoreUtil numberForUNNotificationSetting:settings.notificationCenterSetting];
+
+        settingsDictionary[@"authorizationStatus"] = authorizationStatus;
+        settingsDictionary[@"ios"] = iosDictionary;
+
         block(nil, settingsDictionary);
       }];
 }
@@ -569,7 +669,7 @@
   if (![NotifeeCoreUtil isAppExtension]) {
     // If count is 0, set to -1 instead to avoid notifications in tray being cleared
     NSInteger newCount = count == 0 ? -1 : count;
-    UIApplication *application = [NotifeeCoreUtil notifeeUIApplication];
+    UIApplication *application = (UIApplication *)[NotifeeCoreUtil notifeeUIApplication];
     [application setApplicationIconBadgeNumber:newCount];
   }
   block(nil);
@@ -577,7 +677,7 @@
 
 + (void)getBadgeCount:(notifeeMethodNSIntegerBlock)block {
   if (![NotifeeCoreUtil isAppExtension]) {
-    UIApplication *application = [NotifeeCoreUtil notifeeUIApplication];
+    UIApplication *application = (UIApplication *)[NotifeeCoreUtil notifeeUIApplication];
     NSInteger badgeCount = application.applicationIconBadgeNumber;
 
     block(nil, badgeCount == -1 ? 0 : badgeCount);
@@ -586,7 +686,7 @@
 
 + (void)incrementBadgeCount:(NSInteger)incrementBy withBlock:(notifeeMethodVoidBlock)block {
   if (![NotifeeCoreUtil isAppExtension]) {
-    UIApplication *application = [NotifeeCoreUtil notifeeUIApplication];
+    UIApplication *application = (UIApplication *)[NotifeeCoreUtil notifeeUIApplication];
     NSInteger currentCount = application.applicationIconBadgeNumber;
     // If count is -1, set currentCount to 0 before incrementing
     if (currentCount == -1) {
@@ -602,7 +702,7 @@
 
 + (void)decrementBadgeCount:(NSInteger)decrementBy withBlock:(notifeeMethodVoidBlock)block {
   if (![NotifeeCoreUtil isAppExtension]) {
-    UIApplication *application = [NotifeeCoreUtil notifeeUIApplication];
+    UIApplication *application = (UIApplication *)[NotifeeCoreUtil notifeeUIApplication];
     NSInteger currentCount = application.applicationIconBadgeNumber;
     NSInteger newCount = currentCount - decrementBy;
     // If count is 0 or less, set to -1 instead to avoid notifications in tray being cleared
@@ -616,12 +716,14 @@
 }
 
 + (nullable instancetype)notifeeUIApplication {
-  return [NotifeeCoreUtil notifeeUIApplication];
+  return (NotifeeCore *)[NotifeeCoreUtil notifeeUIApplication];
 };
 
-+ (void)populateNotificationContent:(UNMutableNotificationContent *)content
++ (void)populateNotificationContent:(UNNotificationRequest *)request
+                        withContent:(UNMutableNotificationContent *)content
                  withContentHandler:(void (^)(UNNotificationContent *_Nonnull))contentHandler {
-  return [[NotifeeCoreExtensionHelper instance] populateNotificationContent:content
+  return [[NotifeeCoreExtensionHelper instance] populateNotificationContent:request
+                                                                withContent:content
                                                          withContentHandler:contentHandler];
 };
 

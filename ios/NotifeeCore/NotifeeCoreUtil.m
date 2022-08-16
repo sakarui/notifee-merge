@@ -1,17 +1,26 @@
-//
-//  NotifeeCoreUtil.m
-//  NotifeeCore
-//
-//  Created by Mike on 29/03/2020.
-//  Copyright © 2020 Invertase. All rights reserved.
-//
+/**
+ * Copyright (c) 2016-present Invertase Limited & Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this library except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 
-#import "Private/NotifeeCoreUtil.h"
+#import "NotifeeCoreUtil.h"
 #include <CoreGraphics/CGGeometry.h>
 #import <Intents/INIntentIdentifiers.h>
 #import <UIKit/UIKit.h>
-#import "Private/NotifeeCore+NSURLSession.h"
-#import "Private/NotifeeCoreDelegateHolder.h"
+#import "NotifeeCore+NSURLSession.h"
+#import "NotifeeCoreDelegateHolder.h"
 
 @implementation NotifeeCoreUtil
 
@@ -507,7 +516,7 @@
       // IOSIntentIdentifier.PAUSE_WORKOUT
       [intentIdentifiers addObject:INPauseWorkoutIntentIdentifier];
     } else if ([identifier isEqualToNumber:@11]) {
-      // IOSIntentIdentifier.END_WORKOUT
+      // IntentIdentifier.END_WORKOUT
       [intentIdentifiers addObject:INEndWorkoutIntentIdentifier];
     } else if ([identifier isEqualToNumber:@12]) {
       // IOSIntentIdentifier.CANCEL_WORKOUT
@@ -555,6 +564,87 @@
 }
 
 /**
+ * Returns timestamp in millisecons
+ *
+ * @param date NSDate
+ */
++ (NSNumber *)convertToTimestamp:(NSDate *)date {
+  return [NSNumber numberWithDouble:([date timeIntervalSince1970] * 1000)];
+}
+
+/**
+ * Parse UNNotificationRequest to NSDictionary
+ *
+ * @param request UNNotificationRequest
+ */
++ (NSDictionary *)parseUNNotificationRequest:(UNNotificationRequest *)request {
+  NSMutableDictionary *dictionary = [NSMutableDictionary dictionary];
+  NSMutableDictionary *iosDict = [NSMutableDictionary dictionary];
+
+  dictionary[@"id"] = request.identifier;
+
+  UNNotificationContent *content = request.content;
+
+  dictionary[@"subtitle"] = content.subtitle;
+  dictionary[@"body"] = content.body;
+  dictionary[@"data"] = [content.userInfo mutableCopy];
+
+  // title
+  if (content.title != nil) {
+    dictionary[@"title"] = content.title;
+  }
+
+  // subtitle
+  if (content.subtitle != nil) {
+    dictionary[@"subtitle"] = content.subtitle;
+  }
+
+  // body
+  if (content.body != nil) {
+    dictionary[@"body"] = content.body;
+  }
+
+  iosDict[@"badgeCount"] = content.badge;
+
+  // categoryId
+  if (content.categoryIdentifier != nil) {
+    iosDict[@"categoryId"] = content.categoryIdentifier;
+  }
+
+  // launchImageName
+  if (content.launchImageName != nil) {
+    iosDict[@"launchImageName"] = content.launchImageName;
+  }
+
+  // threadId
+  if (content.threadIdentifier != nil) {
+    iosDict[@"threadId"] = content.threadIdentifier;
+  }
+
+  // targetContentId
+  if (@available(iOS 13.0, macOS 10.15, macCatalyst 13.0, tvOS 13.0, watchOS 6.0, *)) {
+    if (content.targetContentIdentifier != nil) {
+      iosDict[@"targetContentId"] = content.targetContentIdentifier;
+    }
+  }
+
+  // TODO: parse sound
+  //  if (content.sound != nil) {
+  //    iosDict[@"sound"] = content.sound;
+  //  }
+
+  // TODO: parse attachments
+  //  if (content.attachments != nil) {
+  //    iosDict[@"attachments"] =
+  //        [NotifeeCoreUtil DictionaryArrayToNotificationAttachments:content.attachments];
+  //  }
+
+  dictionary[@"ios"] = iosDict;
+
+  return dictionary;
+}
+
+/**
  * Returns a random string using UUID
  *
  * @param length int
@@ -587,7 +677,7 @@
  */
 + (nullable instancetype)notifeeUIApplication {
   static dispatch_once_t once;
-  static UIApplication *_Nullable sharedInstance;
+  static NotifeeCoreUtil *sharedInstance;
   dispatch_once(&once, ^{
     static Class applicationClass = nil;
     if (![self isAppExtension]) {
@@ -597,7 +687,7 @@
       }
     }
 
-    sharedInstance = [applicationClass sharedApplication];
+    sharedInstance = (NotifeeCoreUtil *)[applicationClass sharedApplication];
   });
 
   return sharedInstance;

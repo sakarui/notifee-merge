@@ -1,14 +1,24 @@
-//
-//  Notifee+UNUserNotificationCenter.m
-//  NotifeeCore
-//
-//  Copyright © 2020 Invertase. All rights reserved.
-//
+/**
+ * Copyright (c) 2016-present Invertase Limited & Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this library except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 
-#import "Private/NotifeeCore+UNUserNotificationCenter.h"
+#import "NotifeeCore+UNUserNotificationCenter.h"
 
-#import "Private/NotifeeCoreDelegateHolder.h"
-#import "Private/NotifeeCoreUtil.h"
+#import "NotifeeCoreDelegateHolder.h"
+#import "NotifeeCoreUtil.h"
 
 @implementation NotifeeCoreUNUserNotificationCenter
 struct {
@@ -76,13 +86,15 @@ struct {
 
   // we only care about notifications created through notifee
   if (notifeeNotification != nil) {
-    UNNotificationPresentationOptions presentationOptions = 0;
+    UNNotificationPresentationOptions presentationOptions = UNNotificationPresentationOptionNone;
     NSDictionary *foregroundPresentationOptions =
         notifeeNotification[@"ios"][@"foregroundPresentationOptions"];
 
     BOOL alert = [foregroundPresentationOptions[@"alert"] boolValue];
     BOOL badge = [foregroundPresentationOptions[@"badge"] boolValue];
     BOOL sound = [foregroundPresentationOptions[@"sound"] boolValue];
+    BOOL banner = [foregroundPresentationOptions[@"banner"] boolValue];
+    BOOL list = [foregroundPresentationOptions[@"list"] boolValue];
 
     if (badge) {
       presentationOptions |= UNNotificationPresentationOptionBadge;
@@ -92,7 +104,27 @@ struct {
       presentationOptions |= UNNotificationPresentationOptionSound;
     }
 
-    if (alert) {
+    // if list or banner is true, ignore alert property
+    if (banner || list) {
+      if (banner) {
+        if (@available(iOS 14, *)) {
+          presentationOptions |= UNNotificationPresentationOptionBanner;
+        } else {
+          // for iOS 13 we need to set alert
+          presentationOptions |= UNNotificationPresentationOptionAlert;
+        }
+      }
+
+      if (list) {
+        if (@available(iOS 14, *)) {
+          presentationOptions |= UNNotificationPresentationOptionList;
+        } else {
+          // for iOS 13 we need to set alert
+          presentationOptions |= UNNotificationPresentationOptionAlert;
+        }
+      }
+    } else if (alert) {
+      // TODO: remove alert once it has been fully removed from the notifee API
       presentationOptions |= UNNotificationPresentationOptionAlert;
     }
 
@@ -194,7 +226,11 @@ struct {
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
     openSettingsForNotification:(nullable UNNotification *)notification {
   if (_originalDelegate != nil && originalUNCDelegateRespondsTo.openSettingsForNotification) {
-    [_originalDelegate userNotificationCenter:center openSettingsForNotification:notification];
+    if (@available(iOS 12.0, macOS 10.14, macCatalyst 13.0, *)) {
+      [_originalDelegate userNotificationCenter:center openSettingsForNotification:notification];
+    } else {
+      // Fallback on earlier versions
+    }
   }
 }
 

@@ -4,6 +4,7 @@
 
 import React, { useEffect } from 'react';
 import {
+  Alert,
   AppRegistry,
   Button,
   SafeAreaView,
@@ -22,7 +23,9 @@ import Notifee, {
   Notification,
   EventType,
   Event,
-  IOSAuthorizationStatus,
+  AuthorizationStatus,
+  TimestampTrigger,
+  RepeatFrequency,
 } from '@notifee/react-native';
 
 import { notifications } from './notifications';
@@ -70,16 +73,24 @@ const channels: AndroidChannel[] = [
 ];
 
 async function onMessage(message: RemoteMessage): Promise<void> {
-  console.log('New FCM Message', message);
-  Notifee.displayNotification({
-    id: message.collapseKey,
-    title: 'hello',
-    body: 'world',
+  console.log('New FCM Message', message.messageId);
+  await Notifee.displayNotification({
+    title: 'onMessage',
+    body: `with message ${message.messageId}`,
     android: { channelId: 'default', tag: 'hello1' },
   });
 }
 
-firebase.messaging().setBackgroundMessageHandler(onMessage);
+async function onBackgroundMessage(message: RemoteMessage): Promise<void> {
+  console.log('onBackgroundMessage New FCM Message', message);
+  // await Notifee.displayNotification({
+  //   title: 'onMessage',
+  //   body: `with message ${message.messageId}`,
+  //   android: { channelId: 'default', tag: 'hello1' },
+  // });
+}
+
+firebase.messaging().setBackgroundMessageHandler(onBackgroundMessage);
 function Root(): any {
   const [id, setId] = React.useState<string | null>(null);
 
@@ -89,11 +100,11 @@ function Root(): any {
     firebase.messaging().onMessage(onMessage);
 
     const initialNotification = await Notifee.getInitialNotification();
-    console.log({ initialNotification });
+    console.log('init: ', { initialNotification });
     await Promise.all(channels.map($ => Notifee.createChannel($)));
     await Notifee.setNotificationCategories([
       {
-        id: 'actions1',
+        id: 'actions',
         actions: [
           {
             id: 'like',
@@ -105,8 +116,6 @@ function Root(): any {
           },
         ],
       },
-    ]);
-    await Notifee.setNotificationCategories([
       {
         id: 'stop',
         actions: [
@@ -116,8 +125,6 @@ function Root(): any {
           },
         ],
       },
-    ]);
-    await Notifee.setNotificationCategories([
       {
         id: 'dismiss',
         actions: [
@@ -139,7 +146,7 @@ function Root(): any {
     channelId: string,
   ): Promise<void> {
     let currentPermissions = await Notifee.getNotificationSettings();
-    if (currentPermissions.authorizationStatus !== IOSAuthorizationStatus.AUTHORIZED) {
+    if (currentPermissions.authorizationStatus !== AuthorizationStatus.AUTHORIZED) {
       await Notifee.requestPermission({ sound: true, criticalAlert: true }).then(props =>
         console.log('fullfilled,', props),
       );
@@ -164,8 +171,14 @@ function Root(): any {
       notification.android.channelId = channelId;
 
       const date = new Date(Date.now());
-      date.setSeconds(date.getSeconds() + 5);
-      Notifee.displayNotification(notification)
+      date.setSeconds(date.getSeconds() + 15);
+      const trigger: TimestampTrigger = {
+        type: 0,
+        timestamp: date.getTime(),
+        alarmManager: true,
+        repeatFrequency: RepeatFrequency.HOURLY,
+      };
+      Notifee.createTriggerNotification(notification, trigger)
         .then(notificationId => setId(notificationId))
         .catch(console.error);
     }
@@ -174,71 +187,109 @@ function Root(): any {
   return (
     <SafeAreaView style={[styles.container]}>
       <ScrollView style={[styles.container]}>
-        {id != null && (
-          <View>
-            <Button
-              title={`Cancel ${id}`}
-              onPress={(): void => {
-                if (id != null) Notifee.cancelNotification(id);
-              }}
-            />
-            <Button
-              title={`Cancel trigger ${id}`}
-              onPress={(): void => {
-                if (id != null) Notifee.cancelTriggerNotification(id);
-              }}
-            />
-            <Button
-              title={`Cancel displayed ${id}`}
-              onPress={(): void => {
-                if (id != null) Notifee.cancelDisplayedNotification(id);
-              }}
-            />
-            <Button
-              title={`get notifications`}
-              onPress={async (): Promise<void> => {
-                const ids = await Notifee.getTriggerNotificationIds();
-                console.log(ids);
-              }}
-            />
-            <Button
-              title={`get power manager info`}
-              onPress={async (): Promise<void> => {
-                console.log(await Notifee.getPowerManagerInfo());
-              }}
-            />
-            <Button
-              title={`open power manager `}
-              onPress={async (): Promise<void> => {
-                console.log(await Notifee.openPowerManagerSettings());
-              }}
-            />
-            {/* <Button
-            title={`cancel notification`}
-            onPress={async () => {
-              await Notifee.cancelNotification(id);
+        <View>
+          <Button
+            title={`get notification settings`}
+            onPress={async (): Promise<void> => {
+              const notificationSettings = await Notifee.getNotificationSettings();
+              console.log('notifications Settings : ', JSON.stringify(notificationSettings));
+              Alert.alert(
+                'Notification Settings',
+                JSON.stringify(notificationSettings),
+                [
+                  {
+                    text: 'Cancel',
+                    onPress: () => {
+                      //no-Op
+                    },
+                    style: 'cancel',
+                  },
+                ],
+                {
+                  cancelable: true,
+                },
+              );
             }}
           />
-           <Button
-            title={`cancel trigger notification`}
-            onPress={async () => {
-              await Notifee.cancelTriggerNotification(id);
-       
+          <Button
+            title={`get delivered notifications`}
+            onPress={async (): Promise<void> => {
+              const displayedNotifications = await Notifee.getDisplayedNotifications();
+              console.log('notifications: ', displayedNotifications?.[0]?.notification?.android);
             }}
-          /> */}
-            <Button
-              title={`get channels`}
-              onPress={async (): Promise<void> => {
-                const buttonChannels = await Notifee.getChannels();
-                buttonChannels.forEach(res => {
-                  if (res.id === 'custom-vibrationsouttt') {
-                    console.log('res', res);
-                  }
-                });
-              }}
-            />
-          </View>
-        )}
+          />
+          <Button
+            title={`get trigger notifications`}
+            onPress={async (): Promise<void> => {
+              const triggerNotifications = await Notifee.getTriggerNotifications();
+              console.log('trigger notifications: ', triggerNotifications);
+            }}
+          />
+          <Button
+            title={`get power manager info`}
+            onPress={async (): Promise<void> => {
+              console.log(await Notifee.getPowerManagerInfo());
+            }}
+          />
+          <Button
+            title={`open power manager `}
+            onPress={async (): Promise<void> => {
+              console.log(await Notifee.openPowerManagerSettings());
+            }}
+          />
+          <Button
+            title={`open alarm special access settings`}
+            onPress={async (): Promise<void> => {
+              console.log(await Notifee.openAlarmPermissionSettings());
+            }}
+          />
+          {id != null && (
+            <>
+              <Button
+                title={`Cancel ${id}`}
+                onPress={(): void => {
+                  Notifee.cancelNotification(id, 'example-tag');
+                }}
+              />
+              <Button
+                title={`Cancel trigger ${id}`}
+                onPress={(): void => {
+                  if (id != null) Notifee.cancelTriggerNotification(id);
+                }}
+              />
+              <Button
+                title={`Cancel displayed ${id}`}
+                onPress={async () => {
+                  if (id != null) await Notifee.cancelDisplayedNotification(id);
+                }}
+              />
+              <Button
+                title={`Cancel all `}
+                onPress={async () => {
+                  await Notifee.cancelDisplayedNotifications([id]);
+                }}
+              />
+            </>
+          )}
+          <Button
+            title={`get channels`}
+            onPress={async (): Promise<void> => {
+              const buttonChannels = await Notifee.getChannels();
+              buttonChannels.forEach(res => {
+                if (res.id === 'custom-vibrations') {
+                  console.log('res', res);
+                }
+              });
+            }}
+          />
+          <Button
+            title={`get channels`}
+            onPress={async (): Promise<void> => {
+              const triggerNotifications = await Notifee.getTriggerNotifications();
+              console.log('triggerNotifications', triggerNotifications);
+            }}
+          />
+        </View>
         {notifications.map(({ key, notification }): any => (
           <View key={key} style={styles.rowItem}>
             <Text style={styles.header}>{key}</Text>
@@ -297,6 +348,10 @@ function logEvent(state: string, event: any): void {
     case EventType.CHANNEL_GROUP_BLOCKED:
       eventTypeString = 'CHANNEL_GROUP_BLOCKED';
       console.log('Channel Group', detail.channelGroup);
+      break;
+    case EventType.TRIGGER_NOTIFICATION_CREATED:
+      eventTypeString = 'TRIGGER_NOTIFICATION_CREATED';
+      console.log('Trigger Notification');
       break;
     default:
       eventTypeString = 'UNHANDLED_NATIVE_EVENT';
@@ -405,6 +460,12 @@ const styles = StyleSheet.create({
 // AppRegistry.registerComponent('testing', () => Root);
 
 function TestComponent(): any {
+  useEffect(() => {
+    (async () => {
+      const initialNotification = await Notifee.getInitialNotification();
+      console.log('TestComponent initialNotification', initialNotification);
+    })();
+  }, []);
   return (
     // eslint-disable-next-line react-native/no-inline-styles
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
