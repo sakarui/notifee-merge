@@ -1,6 +1,7 @@
 {
   "name": "@notifications/root",
   "private": true,
+  "version": "99.99.999"
   "license": "Apache-2.0",
   "scripts": {
     "prepare": "yarn lerna:link && lerna run prepare && yarn build:core:ios && (yarn tests_rn:ios:pod:install || true)",
