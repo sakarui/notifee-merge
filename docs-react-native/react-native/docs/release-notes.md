@@ -5,6 +5,16 @@ next: /react-native/docs/usage
 previous: /react-native/docs/installation
 ---
 
+
+## 6.0.0-0
+- **[iOS]: BREAKING CHANGE** : Notifee now handles response events for remote notifications on iOS:
+  - PRESSED
+  - ACTION_PRESSED
+  - DISMISSED
+This allows quick actions from remote notifications to be supported without the need of a NSE [[Learn More]](https://notifee.app/react-native/docs/ios/remote-notification-support)
+
+  **`onNotificationOpenedApp` and `getInitialNotification` from `RNFB Messaging` will no longer trigger as notifee will handle the event. Should not require any code changes to these `RNFB` event handlers, as events on Android will continue to work as normal**
+
 ## 5.6.0
 - **[Android]**: Adds new `loopSound` and `flags` properties to `NotificationAndroid` to support custom flags and to loop the sound when a push notification is displayed (Fixes [#454](https://github.com/invertase/notifee/issues/454)).
 
@@ -18,6 +28,7 @@ previous: /react-native/docs/installation
 ## 5.4.0
 - **[Android]**: Fixes an issue when recreating the trigger notifications after a reboot with AlarmManager  (Fixes [#422](https://github.com/invertase/notifee/issues/422)).
 - **[Android]**: Fixes an issue around displaying a heads-up notification on Xiaomi devices by adding the permission `ACCESS_NOTIFICATION_POLICY` to the `AndroidManifest` (Fixes [#296](https://github.com/invertase/notifee/issues/296)).
+
 
 ## 5.3.0
 - **[Android]**: Elimates the need to add the local maven repository manually to your project  (PR [#414](https://github.com/invertase/notifee/pull/414)).
