@@ -188,7 +188,8 @@
 
   [center addNotificationRequest:request
            withCompletionHandler:^(NSError *error) {
-             if (error == nil) {
+             UIApplication *application = (UIApplication *)[NotifeeCoreUtil notifeeUIApplication];
+             if (error == nil && application.applicationState != UIApplicationStateActive) {
                [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:@{
                  @"type" : @(NotifeeCoreEventTypeDelivered),
                  @"detail" : @{
@@ -218,7 +219,9 @@
     return block(nil);
   }
 
-  UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:notification[@"id"]
+  NSString *identifier = notification[@"id"];
+
+  UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:identifier
                                                                         content:content
                                                                         trigger:unTrigger];
   UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
@@ -229,7 +232,7 @@
   [center addNotificationRequest:request
            withCompletionHandler:^(NSError *error) {
              if (error == nil) {
-               [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:@{
+               [NotifeeCoreUtil didReceiveNotifeeCoreEvent:@{
                  @"type" : @(NotifeeCoreEventTypeTriggerNotificationCreated),
                  @"detail" : @{
                    @"notification" : notificationDetail,
@@ -266,8 +269,12 @@
     content.body = notification[@"body"];
   }
 
+  NSMutableDictionary *userInfo = [[NSMutableDictionary alloc] init];
+
   // data
-  NSMutableDictionary *userInfo = [notification[@"data"] mutableCopy];
+  if (notification[@"data"] != nil) {
+    userInfo = [notification[@"data"] mutableCopy];
+  }
 
   // attach a copy of the original notification payload into the data object,
   // for internal use
@@ -282,17 +289,17 @@
   content.badge = iosDict[@"badgeCount"];
 
   // categoryId
-  if (iosDict[@"categoryId"] != nil) {
+  if (iosDict[@"categoryId"] != nil && iosDict[@"categoryId"] != [NSNull null]) {
     content.categoryIdentifier = iosDict[@"categoryId"];
   }
 
   // launchImageName
-  if (iosDict[@"launchImageName"] != nil) {
+  if (iosDict[@"launchImageName"] != nil && iosDict[@"launchImageName"] != [NSNull null]) {
     content.launchImageName = iosDict[@"launchImageName"];
   }
 
   // critical, criticalVolume, sound
-  if (iosDict[@"critical"] != nil) {
+  if (iosDict[@"critical"] != nil && iosDict[@"critical"] != [NSNull null]) {
     UNNotificationSound *notificationSound;
     BOOL criticalSound = [iosDict[@"critical"] boolValue];
     NSNumber *criticalSoundVolume = iosDict[@"criticalVolume"];

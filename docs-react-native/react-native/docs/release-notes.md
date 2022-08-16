@@ -5,6 +5,7 @@ next: /react-native/docs/usage
 previous: /react-native/docs/installation
 ---
 
+
 ## 6.0.0-0
 - **[iOS]: BREAKING CHANGE** : Notifee now handles response events for remote notifications on iOS:
   - PRESSED
@@ -13,6 +14,20 @@ previous: /react-native/docs/installation
 This allows quick actions from remote notifications to be supported without the need of a NSE [[Learn More]](https://notifee.app/react-native/docs/ios/remote-notification-support)
 
   **`onNotificationOpenedApp` and `getInitialNotification` from `RNFB Messaging` will no longer trigger as notifee will handle the event. Should not require any code changes to these `RNFB` event handlers, as events on Android will continue to work as normal**
+
+## 5.6.0
+- **[Android]**: Adds new `loopSound` and `flags` properties to `NotificationAndroid` to support custom flags and to loop the sound when a push notification is displayed (Fixes [#454](https://github.com/invertase/notifee/issues/454)).
+
+## 5.5.0
+- **[Android]**: Fixes a compile issue for monorepos where sometimes `app.notifee:core:+` cannot be found (Fixes [#350](https://github.com/invertase/notifee/issues/350)).
+- **[iOS]**: Adds new `list` and `banner` options to `IOSForegroundPresentationOptions` on iOS. These new options should be used as a replacement for the `alert` option which is now deprecated in notifee; notifee will fallback to using Apple's `UNNotificationPresentationOptionAlert` option for iOS 13 when either `banner` or `list` is set to true. There are no breaking changes, but we encourage you to update your project as soon as you can if you set custom `IOSForegroundPresentationOptions`. To learn more, view the [Foreground Notifications](/react-native/docs/ios/appearance#foreground-notifications) documentation (Enhancement [#382](https://github.com/invertase/notifee/issues/382)).
+
+## 5.4.1
+- **[Android]**: Fixes an issue when creating a one-time trigger notifications with AlarmManager (Fixes [#445](https://github.com/invertase/notifee/issues/445)).
+
+## 5.4.0
+- **[Android]**: Fixes an issue when recreating the trigger notifications after a reboot with AlarmManager  (Fixes [#422](https://github.com/invertase/notifee/issues/422)).
+- **[Android]**: Fixes an issue around displaying a heads-up notification on Xiaomi devices by adding the permission `ACCESS_NOTIFICATION_POLICY` to the `AndroidManifest` (Fixes [#296](https://github.com/invertase/notifee/issues/296)).
 
 
 ## 5.3.0

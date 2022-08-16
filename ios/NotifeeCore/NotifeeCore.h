@@ -49,13 +49,14 @@ typedef NS_ENUM(NSInteger, NotifeeCoreEventType) {
   NotifeeCoreEventTypeDismissed = 0,
   NotifeeCoreEventTypeDelivered = 3,
   NotifeeCoreEventTypeTriggerNotificationCreated = 7,
+  NotifeeCoreEventTypeIncoming = 8,
 };
 
 @class NotifeeCore;
 
 @protocol NotifeeCoreDelegate <NSObject>
 @optional
-- (void)didReceiveNotifeeCoreEvent:(NSDictionary *_Nonnull)event;
+- (void)didReceiveNotifeeCoreEvent:(NSDictionary *_Nonnull)event foreground:(BOOL)foreground;
 @end
 
 @interface NotifeeCore : NSObject

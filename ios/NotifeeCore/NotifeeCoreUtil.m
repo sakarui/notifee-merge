@@ -20,6 +20,7 @@
 #import <Intents/INIntentIdentifiers.h>
 #import <UIKit/UIKit.h>
 #import "NotifeeCore+NSURLSession.h"
+#import "NotifeeCoreDelegateHolder.h"
 
 @implementation NotifeeCoreUtil
 
@@ -572,7 +573,8 @@
 }
 
 /**
- * Parse UNNotificationRequest to NSDictionary
+ * Parse UNNotificationRequest to NSMutableDictionary
+ * Used by `getDeliveredNotification`
  *
  * @param request UNNotificationRequest
  */
@@ -609,16 +611,16 @@
   for (id key in userInfo) {
     // build data dict from remaining keys but skip keys that shouldn't be included in data
     if ([key isEqualToString:@"aps"] || [key hasPrefix:@"gcm."] || [key hasPrefix:@"google."] ||
-       // notifee or notifee_options
-      [key hasPrefix:@"notifee"] ||
-       // fcm_options
-       [key hasPrefix:@"fcm"]) {
+        // notifee or notifee_options
+        [key hasPrefix:@"notifee"] ||
+        // fcm_options
+        [key hasPrefix:@"fcm"]) {
       continue;
-   }
+    }
     data[key] = userInfo[key];
- }
+  }
 
- return data;
+  return data;
 }
 
 + (NSMutableDictionary *)parseUNNotificationContent:(UNNotificationContent *)content {
@@ -690,6 +692,7 @@
         notificationIOSSound[@"critical"] = soundDict[@"critical"];
       }
 
+
       // ios.sound.volume Number
       if (soundDict[@"volume"] != nil) {
         notificationIOSSound[@"volume"] = soundDict[@"volume"];
@@ -711,6 +714,21 @@
  */
 + (NSString *)generateCachedFileName:(int)length {
   return [[NSUUID UUID] UUIDString];
+}
+
+/**
+ * Util to send an event with the foreground status of the application
+ */
++ (void)didReceiveNotifeeCoreEvent:(NSDictionary *)event {
+  [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:event
+                                                        foreground:[self isInForeground]];
+}
+
+/**
+ * Determines if application is in the foreground or not
+ */
++ (BOOL)isInForeground {
+  return [UIApplication sharedApplication].applicationState == UIApplicationStateActive;
 }
 
 /**

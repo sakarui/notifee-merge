@@ -84,6 +84,11 @@ struct {
   NSDictionary *notifeeNotification =
       notification.request.content.userInfo[kNotifeeUserInfoNotification];
 
+  // handle notification outside of notifee
+  if (notifeeNotification == nil) {
+    notifeeNotification = [NotifeeCoreUtil parseUNNotificationRequest:notification.request];
+  }
+
   // we only care about notifications created through notifee
   if (notifeeNotification != nil) {
     UNNotificationPresentationOptions presentationOptions = UNNotificationPresentationOptionNone;
@@ -93,6 +98,8 @@ struct {
     BOOL alert = [foregroundPresentationOptions[@"alert"] boolValue];
     BOOL badge = [foregroundPresentationOptions[@"badge"] boolValue];
     BOOL sound = [foregroundPresentationOptions[@"sound"] boolValue];
+    BOOL banner = [foregroundPresentationOptions[@"banner"] boolValue];
+    BOOL list = [foregroundPresentationOptions[@"list"] boolValue];
 
     if (badge) {
       presentationOptions |= UNNotificationPresentationOptionBadge;
@@ -102,13 +109,41 @@ struct {
       presentationOptions |= UNNotificationPresentationOptionSound;
     }
 
-    if (alert) {
+    // if list or banner is true, ignore alert property
+    if (banner || list) {
+      if (banner) {
+        if (@available(iOS 14, *)) {
+          presentationOptions |= UNNotificationPresentationOptionBanner;
+        } else {
+          // for iOS 13 we need to set alert
+          presentationOptions |= UNNotificationPresentationOptionAlert;
+        }
+      }
+
+      if (list) {
+        if (@available(iOS 14, *)) {
+          presentationOptions |= UNNotificationPresentationOptionList;
+        } else {
+          // for iOS 13 we need to set alert
+          presentationOptions |= UNNotificationPresentationOptionAlert;
+        }
+      }
+    } else if (alert) {
+      // TODO: remove alert once it has been fully removed from the notifee API
       presentationOptions |= UNNotificationPresentationOptionAlert;
     }
 
-    NSDictionary *notifeeTrigger = notification.request.content.userInfo[kNotifeeUserInfoTrigger];
-    if (notifeeTrigger != nil) {
-      // post DELIVERED event
+
+    BOOL presented = presentationOptions != UNNotificationPresentationOptionNone;
+
+    if (!presented) {
+      [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:@{
+        @"type" : @(NotifeeCoreEventTypeIncoming),
+        @"detail" : @{
+          @"notification" : notifeeNotification,
+        }
+      }];
+    } else {
       [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:@{
         @"type" : @(NotifeeCoreEventTypeDelivered),
         @"detail" : @{
@@ -118,7 +153,6 @@ struct {
     }
 
     completionHandler(presentationOptions);
-
   } else if (_originalDelegate != nil && originalUNCDelegateRespondsTo.willPresentNotification) {
     [_originalDelegate userNotificationCenter:center
                       willPresentNotification:notification
@@ -138,13 +172,17 @@ struct {
 
   // handle notification outside of notifee
   if (notifeeNotification == nil) {
-    notifeeNotification = [NotifeeCoreUtil parseUNNotificationRequest:response.notification.request];
+
+    notifeeNotification =
+        [NotifeeCoreUtil parseUNNotificationRequest:response.notification.request];
   }
+
+  // handle notification
 
   if (notifeeNotification != nil) {
     if ([response.actionIdentifier isEqualToString:UNNotificationDismissActionIdentifier]) {
       // post DISMISSED event, only triggers if notification has a categoryId
-      [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:@{
+      [NotifeeCoreUtil didReceiveNotifeeCoreEvent:@{
         @"type" : @(NotifeeCoreEventTypeDismissed),
         @"detail" : @{
           @"notification" : notifeeNotification,
@@ -189,7 +227,7 @@ struct {
     _initialNotification = [eventDetail copy];
 
     // post PRESS/ACTION_PRESS event
-    [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:event];
+    [NotifeeCoreUtil didReceiveNotifeeCoreEvent:event];
 
     // TODO figure out if this is needed or if we can just complete immediately
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(15 * NSEC_PER_SEC)),
