@@ -84,6 +84,11 @@ struct {
   NSDictionary *notifeeNotification =
       notification.request.content.userInfo[kNotifeeUserInfoNotification];
 
+  // handle notification outside of notifee
+  if (notifeeNotification == nil) {
+    notifeeNotification = [NotifeeCoreUtil parseUNNotificationRequest:notification.request];
+  }
+
   // we only care about notifications created through notifee
   if (notifeeNotification != nil) {
     UNNotificationPresentationOptions presentationOptions = UNNotificationPresentationOptionNone;
@@ -128,10 +133,18 @@ struct {
       presentationOptions |= UNNotificationPresentationOptionAlert;
     }
 
-    NSDictionary *notifeeTrigger = notification.request.content.userInfo[kNotifeeUserInfoTrigger];
-    if (notifeeTrigger != nil) {
-      // post DELIVERED event
-      [NotifeeCoreUtil didReceiveNotifeeCoreEvent:@{
+
+    BOOL presented = presentationOptions != UNNotificationPresentationOptionNone;
+
+    if (!presented) {
+      [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:@{
+        @"type" : @(NotifeeCoreEventTypeIncoming),
+        @"detail" : @{
+          @"notification" : notifeeNotification,
+        }
+      }];
+    } else {
+      [[NotifeeCoreDelegateHolder instance] didReceiveNotifeeCoreEvent:@{
         @"type" : @(NotifeeCoreEventTypeDelivered),
         @"detail" : @{
           @"notification" : notifeeNotification,
@@ -140,7 +153,6 @@ struct {
     }
 
     completionHandler(presentationOptions);
-
   } else if (_originalDelegate != nil && originalUNCDelegateRespondsTo.willPresentNotification) {
     [_originalDelegate userNotificationCenter:center
                       willPresentNotification:notification
@@ -158,7 +170,13 @@ struct {
   NSDictionary *notifeeNotification =
       response.notification.request.content.userInfo[kNotifeeUserInfoNotification];
 
-  // we only care about notifications created through notifee
+  // handle notification outside of notifee
+  if (notifeeNotification == nil) {
+    notifeeNotification =
+        [NotifeeCoreUtil parseUNNotificationRequest:response.notification.request];
+  }
+
+  // handle notification
   if (notifeeNotification != nil) {
     if ([response.actionIdentifier isEqualToString:UNNotificationDismissActionIdentifier]) {
       // post DISMISSED event, only triggers if notification has a categoryId
